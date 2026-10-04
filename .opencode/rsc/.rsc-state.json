@@ -1,0 +1,232 @@
+{
+  "skills": {
+    "analyze": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\analyze"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\analyze"
+    },
+    "automation-strategy": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\automation-strategy"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\automation-strategy"
+    },
+    "clarify": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\clarify"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\clarify"
+    },
+    "constitution": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\constitution"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\constitution"
+    },
+    "debug": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\debug"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\debug"
+    },
+    "decision-challenge": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\decision-challenge"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\decision-challenge"
+    },
+    "deprecation": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\deprecation"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\deprecation"
+    },
+    "fable-operator": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\fable-operator"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\fable-operator"
+    },
+    "ftd": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\ftd"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\ftd"
+    },
+    "harness": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\harness"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\harness"
+    },
+    "idea-refinement": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\idea-refinement"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\idea-refinement"
+    },
+    "implement": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\implement"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\implement"
+    },
+    "init": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\init"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\init"
+    },
+    "orient": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\orient"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\orient"
+    },
+    "parallel": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\parallel"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\parallel"
+    },
+    "plan": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\plan"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\plan"
+    },
+    "review": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\review"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\review"
+    },
+    "sdd": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\sdd"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\sdd"
+    },
+    "sdd-init": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\sdd-init"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\sdd-init"
+    },
+    "ship": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\ship"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\ship"
+    },
+    "simplify-code": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\simplify-code"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\simplify-code"
+    },
+    "source-grounded-development": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\source-grounded-development"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\source-grounded-development"
+    },
+    "specify": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\specify"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\specify"
+    },
+    "suggest": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\suggest"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\suggest"
+    },
+    "tasks": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\tasks"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\tasks"
+    },
+    "ui-engineering": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\ui-engineering"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\ui-engineering"
+    },
+    "unslop": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\unslop"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\unslop"
+    },
+    "verify": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\verify"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\verify"
+    },
+    "worktrees": {
+      "files": [
+        "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\rsc\\worktrees"
+      ],
+      "base": "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\skills\\worktrees"
+    }
+  },
+  "agents": [],
+  "agentCollisions": [],
+  "explicitAgents": [],
+  "memory": {
+    "mode": "full",
+    "reason": "wired",
+    "paths": [
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\session-memory-core.mjs",
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\session-memory-adapter.mjs",
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\session-memory.mjs",
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\plugins\\rsc-memory.js"
+    ]
+  },
+  "update": {
+    "mode": "hook"
+  },
+  "knowledge": {
+    "mode": "wired",
+    "reason": null,
+    "paths": [
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\knowledge-sync.mjs",
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.rsc\\trunk-policy.mjs",
+      "C:\\Users\\MegaTecnologia\\Desktop\\uli\\PaginasWeb\\miMuro\\.opencode\\plugins\\rsc-knowledge.js"
+    ]
+  },
+  "policy": {
+    "baseAgents": false,
+    "alwaysOn": true,
+    "codeHooks": false,
+    "dangerGuard": true,
+    "gitmojiGuard": false,
+    "memory": true,
+    "context7": false
+  },
+  "commands": [
+    "analyze",
+    "checkpoint",
+    "clarify",
+    "debug",
+    "harness-audit",
+    "implement",
+    "learn",
+    "plan",
+    "refactor-clean",
+    "resume-session",
+    "review",
+    "save-session",
+    "ship",
+    "specify",
+    "tasks",
+    "verify"
+  ],
+  "commandCollisions": [],
+  "version": "3.0.1"
+}
