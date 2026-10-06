@@ -52,3 +52,9 @@ backend/*.db
 
 # Misc
 *.local
+
+# Local tooling state — machine-local
+.rsc/
+.rsc.json
+.opencode/
+AGENTS.md

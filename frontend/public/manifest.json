@@ -1,0 +1,17 @@
+{
+  "name": "miMuro",
+  "short_name": "miMuro",
+  "description": "Tu lienzo digital para firmar y dibujar",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favIcon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

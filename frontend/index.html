@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <!-- viewport-fit=cover is what makes env(safe-area-inset-*)
+       report the notch and home indicator on iOS. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>miMuro — Tu lienzo digital para firmar y dibujar</title>
+  <meta name="description" content="Crea tu lienzo personal, comparte un link y deja que tus amigos dibujen y firmen tu muro en tiempo real. Gratis y desde el móvil.">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b0b0f" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="miMuro — Tu lienzo digital para firmar y dibujar">
+  <meta property="og:description" content="Crea tu muro, comparte el link y mira cómo tus amigos lo dibujan en tiempo real.">
+  <meta property="og:locale" content="es_ES">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favIcon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favIcon.png">
+  <link rel="apple-touch-icon" href="/assets/favIcon.png">
+  <link rel="manifest" href="/manifest.json">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('theme')
+        if (theme) {
+          document.documentElement.setAttribute('data-theme', theme)
+        } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
+      } catch (e) {}
+    })()
+  </script>
+</head>
+<body>
+  <div id="app" x-data="appComponent">
+    <div x-html="$store.templates.app"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

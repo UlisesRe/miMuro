@@ -1,0 +1,312 @@
+/* ========================================
+   miMuro - Authenticated pages
+   Dashboard (my walls) and the wall/canvas
+   viewing surface.
+
+   These styles used to live as dead template
+   strings inside the JS modules. They were
+   ported here and re-written mobile-first.
+   ======================================== */
+
+/* ========================================
+   Dashboard
+   ======================================== */
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+@media (min-width: 640px) {
+  .page-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+  }
+}
+
+.page-header__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+
+@media (min-width: 768px) {
+  .page-header__title {
+    font-size: var(--text-3xl);
+  }
+}
+
+.page-header__subtitle {
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* The dashboard already has its own primary CTA
+   in the page header, so the FAB would be a
+   duplicate target. */
+.page--dashboard ~ .fab,
+.app-shell[data-fab='false'] .fab {
+  display: none;
+}
+
+.walls-grid {
+  display: grid;
+  gap: var(--space-md);
+}
+
+@media (min-width: 640px) {
+  .walls-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .walls-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.wall-card-item {
+  height: 100%;
+}
+
+/* ========================================
+   Wall view
+   ======================================== */
+
+.page--wall {
+  display: flex;
+  flex-direction: column;
+}
+
+.wall-header {
+  position: sticky;
+  top: calc(var(--header-height) + var(--safe-top));
+  z-index: var(--z-sticky);
+  padding-block: var(--space-sm);
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wall-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.wall-header__info {
+  min-width: 0;
+}
+
+.wall-header__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-header__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: 0.125rem;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.wall-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  flex-shrink: 0;
+}
+
+.wall-online {
+  display: flex;
+  align-items: center;
+}
+
+.wall-online .avatar {
+  border: 2px solid var(--color-bg-subtle);
+}
+
+.wall-online .avatar:not(:first-child) {
+  margin-inline-start: -0.375rem;
+}
+
+.wall-guest-note {
+  display: none;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+@media (min-width: 40em) {
+  .wall-guest-note {
+    display: block;
+  }
+}
+
+.wall-toolbar-bar {
+  position: sticky;
+  top: calc(var(--header-height) + var(--safe-top) + 3.25rem);
+  z-index: var(--z-sticky);
+  padding-block: var(--space-xs);
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wall-stage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wall-canvas-frame {
+  flex: 1;
+  width: 100%;
+  background-color: var(--canvas-bg);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+  display: flex;
+}
+
+.wall-canvas-holder {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  aspect-ratio: auto;
+}
+
+.wall-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Stop the browser from hijacking the drag as
+     a scroll gesture - this is what makes touch
+     drawing feel right. */
+  touch-action: none;
+  background-color: var(--canvas-bg);
+}
+
+.wall-cursors {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-raised);
+  pointer-events: none;
+}
+
+.remote-cursor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.remote-cursor__pointer {
+  width: 1.375rem;
+  height: 1.375rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2'%3E%3Cpath d='M5 5l14 14M5 19l14-14'/%3E%3C/svg%3E");
+  background-size: contain;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.3));
+}
+
+.remote-cursor__label {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  padding: 0.125rem 0.375rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-inverse);
+  background-color: var(--cursor-color, var(--color-primary));
+  border-radius: var(--radius-xs);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.wall-footer {
+  padding-block: var(--space-md);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+}
+
+.wall-footer__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  text-align: center;
+}
+
+.wall-footer__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Keyboard hints are meaningless on touch */
+.wall-footer__keys {
+  display: none;
+}
+
+@media (min-width: 768px) and (hover: hover) {
+  .wall-footer__keys {
+    display: inline;
+  }
+}
+
+.wall-share {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  max-width: 100%;
+  padding: var(--space-3xs) var(--space-2xs) var(--space-3xs) var(--space-sm);
+  font-size: var(--text-xs);
+  background-color: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+.wall-share__url {
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(16rem, 45vw);
+}
+
+/* ========================================
+   Not found
+   ======================================== */
+
+.not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-block: var(--space-3xl);
+  text-align: center;
+}
+
+.not-found__code {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-extrabold);
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--color-primary);
+}

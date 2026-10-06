@@ -1,0 +1,305 @@
+<div class="app">
+
+  <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+
+  <!-- Toasts -->
+  <div class="toast-container" aria-live="polite" aria-atomic="false">
+    <template x-for="notification in $store.toast.notifications" :key="notification.id">
+      <div class="toast" :class="'toast--' + notification.type" role="status">
+        <span class="toast__icon" aria-hidden="true">
+          <template x-if="notification.type === 'success'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </template>
+          <template x-if="notification.type === 'error'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </template>
+          <template x-if="notification.type === 'warning'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </template>
+          <template x-if="notification.type === 'info'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          </template>
+        </span>
+
+        <div class="toast__body" x-text="notification.message"></div>
+
+        <button type="button" class="toast__dismiss"
+                @click="$store.toast.dismiss(notification.id)"
+                aria-label="Descartar notificación">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </template>
+  </div>
+
+  <!-- Header -->
+  <header class="header" :data-scrolled="scrolled ? 'true' : 'false'">
+    <div class="container header__inner">
+      <a href="/" class="header__logo" @click.prevent="$router.navigate('/')" aria-label="miMuro, ir al inicio">
+        <span class="header__logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+        </span>
+        miMuro
+      </a>
+
+      <nav class="header__nav" aria-label="Navegación principal">
+        <template x-if="$store.auth.isAuthenticated">
+          <a href="/dashboard" class="header__link" :aria-current="isActive('DashboardPage') ? 'page' : null"
+             @click.prevent="$router.navigate('/dashboard')">Mis muros</a>
+        </template>
+      </nav>
+
+      <div class="header__actions">
+        <template x-if="!$store.auth.isAuthenticated">
+          <div class="flex items-center gap-xs">
+            <a href="/login" class="btn btn--ghost header__desktop-only"
+               @click.prevent="$router.navigate('/login')">Entrar</a>
+            <a href="/register" class="btn btn--primary btn--sm"
+               @click.prevent="$router.navigate('/register')">Crear miMuro</a>
+          </div>
+        </template>
+
+        <template x-if="$store.auth.isAuthenticated">
+          <div class="user-menu" x-data="{ open: false }" @keydown.escape.window="open = false">
+            <button type="button" class="user-menu__trigger"
+                    @click="open = !open"
+                    :aria-expanded="open ? 'true' : 'false'"
+                    aria-haspopup="menu">
+              <span class="avatar avatar--sm" x-text="initials"></span>
+              <span class="user-menu__name" x-text="$store.auth.user?.name"></span>
+              <svg class="user-menu__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            <div class="user-menu__panel" x-show="open" x-cloak
+                 @click.outside="open = false"
+                 x-transition.origin.top.right
+                 role="menu"
+                 aria-label="Menú de cuenta">
+              <div class="user-menu__header">
+                <span class="avatar avatar--sm" x-text="initials"></span>
+                <div class="user-menu__identity">
+                  <p class="user-menu__display-name" x-text="$store.auth.user?.name"></p>
+                  <p class="user-menu__email" x-text="$store.auth.user?.email"></p>
+                </div>
+              </div>
+
+              <a href="/dashboard" class="user-menu__item" role="menuitem"
+                 @click.prevent="open = false; $router.navigate('/dashboard')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                </svg>
+                Mis muros
+              </a>
+
+              <button type="button" class="user-menu__item user-menu__item--danger"
+                      role="menuitem" @click="open = false; logout()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </header>
+
+  <!-- Router outlet.
+       x-if (not x-show) so only the active page is
+       ever in the DOM: no duplicate ids, no init()
+       running on hidden pages, no stray API calls. -->
+  <main id="main-content" class="app-shell" :data-nav="showAppNav ? 'true' : 'false'" tabindex="-1">
+    <template x-if="currentPage === 'HomePage'">
+      <div x-data="homePage"><div x-html="homePageTemplate"></div></div>
+    </template>
+
+    <template x-if="currentPage === 'LoginPage'">
+      <div x-data="loginPage"><div x-html="loginPageTemplate"></div></div>
+    </template>
+
+    <template x-if="currentPage === 'RegisterPage'">
+      <div x-data="registerPage"><div x-html="registerPageTemplate"></div></div>
+    </template>
+
+    <template x-if="currentPage === 'DashboardPage'">
+      <div x-data="dashboardPage"><div x-html="dashboardPageTemplate"></div></div>
+    </template>
+
+    <template x-if="currentPage === 'WallViewPage'">
+      <div x-data="wallViewPage"><div x-html="wallViewTemplate"></div></div>
+    </template>
+
+    <template x-if="currentPage === 'PublicWallPage'">
+      <div x-data="publicWallPage"><div x-html="publicWallTemplate"></div></div>
+    </template>
+
+    <template x-if="currentPage === 'NotFoundPage'">
+      <div class="container not-found">
+        <p class="not-found__code">404</p>
+        <h1 class="section-head__title">Esta pared no existe</h1>
+        <p class="section-head__text">
+          El enlace puede estar mal escrito o el muro se eliminó.
+        </p>
+        <a href="/" class="btn btn--primary btn--lg" @click.prevent="$router.navigate('/')">
+          Volver al inicio
+        </a>
+      </div>
+    </template>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer" x-show="showFooter">
+    <div class="container footer__inner">
+      <div class="footer__brand">
+        <span class="footer__logo">miMuro</span>
+        <p class="footer__tagline">Tu lienzo digital para firmar y dibujar.</p>
+      </div>
+
+      <nav class="footer__nav" aria-label="Enlaces legales">
+        <a href="/privacy" class="footer__link">Privacidad</a>
+        <a href="/terms" class="footer__link">Términos</a>
+        <a href="/contact" class="footer__link">Contacto</a>
+      </nav>
+
+      <p class="footer__legal">hecho con cariño para compartir</p>
+    </div>
+  </footer>
+
+  <!-- Mobile bottom navigation. The middle slot is
+       deliberately empty: the FAB floats over it. -->
+  <nav class="tabbar" x-show="showAppNav" aria-label="Navegación principal">
+    <a href="/" class="tab" :aria-current="isActive('HomePage') ? 'page' : null"
+       @click.prevent="$router.navigate('/')">
+      <span class="tab__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+      </span>
+      Inicio
+    </a>
+
+    <span class="tabbar__spacer" aria-hidden="true"></span>
+
+    <a href="/dashboard" class="tab" :aria-current="isActive('DashboardPage') ? 'page' : null"
+       @click.prevent="$router.navigate('/dashboard')">
+      <span class="tab__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+        </svg>
+      </span>
+      Muros
+    </a>
+  </nav>
+
+  <!-- Primary action, always one thumb away on phones -->
+  <button type="button" class="fab" x-show="showFab" @click="onFabClick()"
+          aria-label="Crear un muro nuevo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- Create wall sheet. Global so the FAB, the
+       header and the dashboard all open the same
+       dialog. -->
+  <div class="modal-overlay"
+       x-show="$store.app.createWallOpen"
+       x-cloak
+       @click.self="$store.app.closeCreateWall()"
+       @keydown.escape.window="$store.app.closeCreateWall()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="create-wall-title"
+         x-data="createWallForm">
+      <span class="modal__handle" aria-hidden="true"></span>
+
+      <div class="modal__header">
+        <div>
+          <h2 class="modal__title" id="create-wall-title">Nuevo muro</h2>
+          <p class="modal__subtitle">Elige un título y compártelo cuando quieras.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--icon"
+                @click="$store.app.closeCreateWall()" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal__body">
+        <div x-html="$store.templates.createWallForm"></div>
+      </div>
+
+      <div class="modal__footer">
+        <button type="button" class="btn btn--secondary" @click="$store.app.closeCreateWall()">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn--primary" @click="submit()"
+                :disabled="loading || !canSubmit" :data-busy="loading ? 'true' : 'false'">
+          <span class="spinner" x-show="loading" x-cloak aria-hidden="true"></span>
+          <span x-text="loading ? 'Creando...' : 'Crear muro'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit wall sheet -->
+  <div class="modal-overlay"
+       x-show="$store.app.editWallOpen"
+       x-cloak
+       @click.self="$store.app.closeEditWall()"
+       @keydown.escape.window="$store.app.closeEditWall()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-wall-title"
+         x-data="editWallForm">
+      <span class="modal__handle" aria-hidden="true"></span>
+
+      <div class="modal__header">
+        <div>
+          <h2 class="modal__title" id="edit-wall-title">Editar mi muro</h2>
+          <p class="modal__subtitle">Cambia el título, color o visibilidad.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--icon"
+                @click="$store.app.closeEditWall()" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal__body">
+        <div x-html="$store.templates.editWallForm"></div>
+      </div>
+
+      <div class="modal__footer">
+        <button type="button" class="btn btn--secondary" @click="$store.app.closeEditWall()">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn--primary" @click="submit()"
+                :disabled="loading || !canSubmit" :data-busy="loading ? 'true' : 'false'">
+          <span class="spinner" x-show="loading" x-cloak aria-hidden="true"></span>
+          <span x-text="loading ? 'Guardando...' : 'Guardar cambios'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

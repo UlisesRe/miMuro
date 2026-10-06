@@ -1,0 +1,263 @@
+/* ========================================
+   miMuro - Design Tokens
+   Single source of truth for color, type,
+   spacing, radius, elevation and motion.
+   ======================================== */
+
+:root {
+  /* ----------------------------------------
+     Brand - neutral slate primary with a
+     single muted cool accent. Clean, modern,
+     non-gendered. Works on light and dark.
+     ---------------------------------------- */
+  --color-primary: #0f172a;
+  --color-primary-hover: #1e293b;
+  --color-primary-active: #020617;
+  --color-primary-soft: #f1f5f9;
+  --color-primary-soft-hover: #e2e8f0;
+  --color-primary-contrast: #ffffff;
+
+  --color-accent: #334155;
+  --color-accent-soft: #f1f5f9;
+
+  --color-highlight: #475569;
+  --color-highlight-soft: #f1f5f9;
+
+  /* Status. Muted on purpose: nothing should
+     shout louder than the content itself. */
+  --color-success: #2f6b4f;
+  --color-success-soft: #e7f2ec;
+  --color-error: #a63a3a;
+  --color-error-soft: #f9ebeb;
+  --color-warning: #8a5a1b;
+  --color-warning-soft: #fbf2e3;
+  --color-info: #2f5f7a;
+  --color-info-soft: #e8f0f5;
+
+  /* ----------------------------------------
+     Surfaces - light theme
+     ---------------------------------------- */
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f8f9fa;
+  --color-bg-muted: #f1f3f5;
+  --color-bg-inset: #f8f9fa;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-overlay: rgb(20 22 26 / 0.55);
+
+  --color-text: #16181d;
+  --color-text-secondary: #4b525c;
+  --color-text-muted: #6d747d;
+  --color-text-inverse: #ffffff;
+  --color-text-brand: var(--color-primary);
+
+  --color-border: #e4e7eb;
+  --color-border-strong: #ced4da;
+  --color-border-focus: var(--color-primary);
+
+  /* Canvas */
+  --canvas-bg: #ffffff;
+  --canvas-grid-color: #e4e7eb;
+
+  /* ----------------------------------------
+     Signature gradient - neutral slate.
+     Used on the FAB, primary surfaces and the focus ring.
+     ---------------------------------------- */
+  --gradient-brand: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
+  --gradient-brand-hover: linear-gradient(135deg, #1e293b 0%, #2d3a4f 55%, #475569 100%);
+  --gradient-surface: linear-gradient(180deg, var(--color-bg-subtle) 0%, var(--color-bg) 100%);
+
+  /* ----------------------------------------
+     Typography
+     Outfit for display, Plus Jakarta Sans
+     for UI/body, Caveat for handwritten notes.
+     ---------------------------------------- */
+  --font-display: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-hand: 'Caveat', 'Bradley Hand', 'Segoe Script', cursive;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, monospace;
+
+  /* Fluid scale. Base sizes never drop below
+     16px for inputs to avoid iOS zoom-on-focus. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: clamp(1rem, 0.3vw + 0.95rem, 1.0625rem);
+  --text-lg: clamp(1.0625rem, 0.5vw + 1rem, 1.1875rem);
+  --text-xl: clamp(1.125rem, 0.9vw + 1.05rem, 1.3125rem);
+  --text-2xl: clamp(1.25rem, 1.6vw + 1.12rem, 1.625rem);
+  --text-3xl: clamp(1.5rem, 2.8vw + 1.2rem, 2.25rem);
+  --text-4xl: clamp(1.875rem, 5vw + 1.1rem, 3.5rem);
+  --text-display: clamp(2.125rem, 7vw + 1rem, 4rem);
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.04em;
+  --tracking-widest: 0.12em;
+
+  /* ----------------------------------------
+     Spacing - 4px base scale
+     ---------------------------------------- */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.375rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 2.5rem;
+  --space-3xl: 3.5rem;
+  --space-4xl: 5rem;
+
+  /* Vertical rhythm per section, fluid */
+  --section-y: clamp(3rem, 8vw, 6rem);
+  --gutter: clamp(1rem, 4vw, 2rem);
+
+  /* ----------------------------------------
+     Radius
+     ---------------------------------------- */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+  --radius-full: 9999px;
+
+  /* ----------------------------------------
+     Elevation
+     ---------------------------------------- */
+  --shadow-xs: 0 1px 2px 0 rgb(24 24 27 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(24 24 27 / 0.07), 0 1px 2px -1px rgb(24 24 27 / 0.05);
+  --shadow-md: 0 4px 8px -2px rgb(24 24 27 / 0.08), 0 2px 4px -2px rgb(24 24 27 / 0.05);
+  --shadow-lg: 0 12px 20px -6px rgb(24 24 27 / 0.1), 0 6px 8px -6px rgb(24 24 27 / 0.05);
+  --shadow-xl: 0 24px 40px -12px rgb(24 24 27 / 0.16), 0 8px 12px -8px rgb(24 24 27 / 0.08);
+  --shadow-brand: 0 10px 24px -8px rgb(29 36 51 / 0.35);
+  --shadow-brand-lg: 0 16px 32px -10px rgb(29 36 51 / 0.4);
+
+  /* ----------------------------------------
+     Motion. Every duration pairs with an
+     easing curve; nothing is linear except
+     spinners, which read as "working".
+     ---------------------------------------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 380ms;
+
+  /* ----------------------------------------
+     Layout metrics
+     ---------------------------------------- */
+  --container: 75rem;
+  --container-prose: 40rem;
+  --header-height: 3.5rem;
+  --tabbar-height: 4.25rem;
+  --fab-size: 3.5rem;
+  --tap-target: 2.75rem;
+
+  /* Device safe areas (notches, home indicator) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ----------------------------------------
+     Z-index scale
+     ---------------------------------------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-tabbar: 200;
+  --z-fab: 250;
+  --z-header: 300;
+  --z-dropdown: 400;
+  --z-overlay: 500;
+  --z-modal: 600;
+  --z-toast: 700;
+}
+
+/* ========================================
+   Dark theme
+   Applied via [data-theme="dark"] on <html>.
+   Colours are lifted in lightness so that
+   text keeps >= 4.5:1 against its surface.
+   ======================================== */
+
+[data-theme='dark'] {
+  --color-primary: #f1f5f9;
+  --color-primary-hover: #ffffff;
+  --color-primary-active: #e2e8f0;
+  --color-primary-soft: #1e293b;
+  --color-primary-soft-hover: #334155;
+  --color-primary-contrast: #0f172a;
+
+  --color-accent: #94a3b8;
+  --color-accent-soft: #1e293b;
+
+  --color-highlight: #94a3b8;
+  --color-highlight-soft: #1e293b;
+
+  --color-success: #6bbf95;
+  --color-success-soft: #14301f;
+  --color-error: #e08585;
+  --color-error-soft: #331c1c;
+  --color-warning: #d0a45f;
+  --color-warning-soft: #322614;
+  --color-info: #7fa8c0;
+  --color-info-soft: #1a2b35;
+
+  --color-bg: #101317;
+  --color-bg-subtle: #14181d;
+  --color-bg-muted: #1b2027;
+  --color-bg-inset: #14181d;
+  --color-surface: #14181d;
+  --color-surface-raised: #1b2027;
+  --color-overlay: rgb(0 0 0 / 0.7);
+
+  --color-text: #f4f6f8;
+  --color-text-secondary: #a9b1bb;
+  --color-text-muted: #7d858f;
+  --color-text-inverse: #14171d;
+  --color-text-brand: #e6e9ee;
+
+  --color-border: #262c34;
+  --color-border-strong: #39414b;
+  --color-border-focus: #e6e9ee;
+
+  --canvas-bg: #14181d;
+  --canvas-grid-color: #262c34;
+
+  --gradient-brand: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 55%, #94a3b8 100%);
+  --gradient-brand-hover: linear-gradient(135deg, #ffffff 0%, #f1f5f9 55%, #cbd5e1 100%);
+  --gradient-surface: linear-gradient(180deg, var(--color-bg-subtle) 0%, var(--color-bg) 100%);
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.55), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 12px 20px -6px rgb(0 0 0 / 0.6), 0 6px 8px -6px rgb(0 0 0 / 0.45);
+  --shadow-xl: 0 24px 40px -12px rgb(0 0 0 / 0.7), 0 8px 12px -8px rgb(0 0 0 / 0.5);
+  --shadow-brand: 0 10px 24px -8px rgb(0 0 0 / 0.5);
+  --shadow-brand-lg: 0 16px 32px -10px rgb(0 0 0 / 0.55);
+}
+
+/* Follow the OS preference until the user
+   explicitly picks a theme. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}

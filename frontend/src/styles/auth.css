@@ -1,0 +1,373 @@
+/* ========================================
+   miMuro - Auth pages (login / register)
+
+   Phones: a single centred column with the
+   form only. The header already carries the
+   logo, so the brand panel is dropped.
+
+   >= 960px: split layout with the brand
+   story on the left and the form on the
+   right.
+   ======================================== */
+
+.auth {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Login and register own the whole viewport, so
+   their content sits vertically centred. */
+.page--auth {
+  justify-content: center;
+}
+
+.auth__inner {
+  display: grid;
+  width: 100%;
+  max-width: 68rem;
+  margin-inline: auto;
+  padding-block: var(--space-lg) var(--space-2xl);
+}
+
+@media (min-width: 960px) {
+  .auth__inner {
+    grid-template-columns: 1fr 26rem;
+    align-items: center;
+    gap: var(--space-3xl);
+    min-height: calc(100dvh - var(--header-height) - var(--safe-top));
+    padding-block: var(--space-2xl);
+  }
+}
+
+/* ========================================
+   Brand panel
+   ======================================== */
+
+.auth__brand {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  .auth__brand {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    align-items: flex-start;
+  }
+}
+
+.auth__brand-title {
+  margin: 0;
+  font-size: var(--text-3xl);
+  max-width: 22ch;
+}
+
+.auth__brand-title .font-hand {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.auth__brand-text {
+  max-width: 34rem;
+  font-size: var(--text-md);
+}
+
+/* Numbered reassurance list */
+.auth__points {
+  display: grid;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auth__point {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth__point-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  color: var(--color-primary);
+  background-color: var(--color-primary-soft);
+  border-radius: var(--radius-full);
+}
+
+.auth__point-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.auth__proof {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.auth__proof-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ========================================
+   Form panel
+   ======================================== */
+
+.auth__panel {
+  width: 100%;
+  padding: var(--space-lg);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+}
+
+@media (min-width: 480px) {
+  .auth__panel {
+    padding: var(--space-xl);
+  }
+}
+
+.auth__header {
+  margin-bottom: var(--space-lg);
+  text-align: center;
+}
+
+.auth__title {
+  margin: 0 0 var(--space-3xs);
+  font-size: var(--text-2xl);
+}
+
+.auth__subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  margin-bottom: var(--space-md);
+  min-height: var(--tap-target);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth__back svg {
+  width: 1rem;
+  height: 1rem;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.auth__back:hover svg {
+  transform: translateX(-0.125rem);
+}
+
+/* ========================================
+   Form
+   ======================================== */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.auth-form__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+@media (min-width: 480px) {
+  .auth-form__row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+}
+
+/* Password rules live between label and field
+   so the user reads them before typing. */
+.auth-form__requirements {
+  padding: var(--space-sm);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+/* Summary of problems, announced on submit */
+.auth-form__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-error);
+  background-color: var(--color-error-soft);
+  border-radius: var(--radius-sm);
+}
+
+.auth-form__alert svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.15em;
+  flex-shrink: 0;
+}
+
+/* Inline submit for tablets and up */
+.auth-form__submit-inline {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .auth-form__submit-inline {
+    display: flex;
+  }
+}
+
+/* Sticky submit for phones: keeps the primary
+   action reachable without scrolling past a
+   five-field form. */
+.auth-form__submit-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-raised);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-inline: calc(var(--space-lg) * -1);
+  margin-bottom: calc(var(--space-lg) * -1);
+  padding: var(--space-sm) var(--space-lg) calc(var(--space-md) + var(--safe-bottom));
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border-top: 1px solid var(--color-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (min-width: 480px) {
+  .auth-form__submit-sticky {
+    margin-inline: calc(var(--space-xl) * -1);
+    margin-bottom: calc(var(--space-xl) * -1);
+    padding-inline: var(--space-xl);
+  }
+}
+
+@media (min-width: 768px) {
+  .auth-form__submit-sticky {
+    display: none;
+  }
+}
+
+.auth-form__separator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.auth-form__separator::before,
+.auth-form__separator::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background-color: var(--color-border);
+}
+
+/* Terms checkbox text can hold a link */
+.legal {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-muted);
+}
+
+.legal a {
+  color: var(--color-text-brand);
+  text-decoration: underline;
+}
+
+.auth-form__footer {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth-form__footer a {
+  font-weight: var(--weight-semibold);
+}
+
+.auth-form__switch {
+  display: block;
+  font-weight: var(--weight-semibold);
+}
+
+/* ========================================
+   Password reveal toggle label
+   ======================================== */
+
+.field__action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Inline "show" text button, used next to
+   the "forgot password" link on phones where
+   stacking is easier to scan. */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-target);
+  padding-inline: var(--space-2xs);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-brand);
+  border-radius: var(--radius-xs);
+  transition: color var(--duration-fast) var(--ease-in-out);
+}
+
+.link-button:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+/* ========================================
+   Guest notice shown when the user is
+   redirected here while already signed in
+   ======================================== */
+
+.auth__notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-info);
+  background-color: var(--color-info-soft);
+  border-radius: var(--radius-sm);
+}
+
+.auth__notice svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
