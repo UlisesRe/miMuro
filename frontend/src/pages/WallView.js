@@ -16,7 +16,6 @@ export function WallViewPageComponent() {
     userName: 'Anónimo',
     onlineUsers: [],
     cursors: [],
-    canvasRef: { value: null },
     canvasApi: null,
     wallViewTemplate: WallViewTemplate,
     showUserMenu: false,
@@ -65,7 +64,7 @@ export function WallViewPageComponent() {
 
         this.loading = false
         await this.$nextTick()
-        this.initCanvas()
+        if (!(await this.initCanvas())) return
 
         await this.loadStrokes()
         this.connectWebSocket()
@@ -82,13 +81,27 @@ export function WallViewPageComponent() {
       }
     },
 
-    initCanvas() {
-      this.canvasApi = useCanvas({ value: this.canvasRef }, {
+    async initCanvas() {
+      // Alpine only registers `x-ref`, and the canvas lives inside
+      // an x-if branch, so wait for the element before wiring up.
+      for (let attempt = 0; attempt < 10 && !this.$refs.canvasRef; attempt++) {
+        await this.$nextTick()
+      }
+
+      const canvasEl = this.$refs.canvasRef
+      if (typeof canvasEl?.getContext !== 'function') {
+        this.error = 'No pudimos inicializar el lienzo.'
+        this.loading = false
+        return false
+      }
+
+      this.canvasApi = useCanvas({ value: canvasEl }, {
         readOnly: !this.canDraw,
         backgroundColor: this.wall?.background_color || '#ffffff',
         onStrokeComplete: (stroke) => this.handleStrokeComplete(stroke)
       })
       this.canvasApi.init()
+      return true
     },
 
     async loadStrokes() {
@@ -395,26 +408,28 @@ export const WallViewTemplate = `
         </div>
       </div>
     </header>
+  </template>
 
-    <!-- Toolbar -->
-    <template x-if="canDraw">
-      <div class="wall-toolbar-bar">
-        <div class="container">
-          <div x-data="toolbarComponent">
-            <div x-html="$store.templates.toolbar"></div>
-          </div>
+  <!-- Toolbar -->
+  <template x-if="wall && !loading && !error && canDraw">
+    <div class="wall-toolbar-bar">
+      <div class="container">
+        <div x-data="toolbarComponent">
+          <div x-html="$store.templates.toolbar"></div>
         </div>
       </div>
-    </template>
+    </div>
+  </template>
 
-    <!-- Canvas Stage - Full viewport -->
+  <!-- Canvas Stage - Full viewport -->
+  <template x-if="wall && !loading && !error">
     <div class="wall-stage">
       <div class="container">
         <div class="wall-canvas-frame"
              :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
           <div class="wall-canvas-holder">
             <canvas class="wall-canvas"
-                    ref="canvasRef"
+                    x-ref="canvasRef"
                     role="application"
                     aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
 
@@ -431,8 +446,10 @@ export const WallViewTemplate = `
         </div>
       </div>
     </div>
+  </template>
 
-    <!-- Footer with share link -->
+  <!-- Footer with share link -->
+  <template x-if="wall && !loading && !error">
     <footer class="wall-footer">
       <div class="container wall-footer__inner">
         <p class="wall-footer__hint">
@@ -452,7 +469,6 @@ export const WallViewTemplate = `
         </template>
       </div>
     </footer>
-
   </template>
 </div>
 `

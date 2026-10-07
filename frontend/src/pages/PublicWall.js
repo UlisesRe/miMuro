@@ -1,24 +1,31 @@
 // ========================================
 // miMuro - Public Wall Page (for /w/:slug)
 //
-// NOTE: the drawing runtime (useCanvas + ws) is
-// owned elsewhere and is still being wired up.
-// Only the shell around it is kept in sync with
-// the design system here.
+// Flow:
+//   1. The visitor lands on a full-screen,
+//      blurred view of the wall.
+//   2. They type their name and confirm.
+//   3. The whole viewport becomes the canvas
+//      plus the (floating) drawing toolbar,
+//      paint-style. Signed-in users skip the
+//      name prompt.
 // ========================================
 
 import { api } from '../services/api.js'
 import { useCanvas } from '../hooks/useCanvas.js'
 import { wsClient } from '../services/ws.js'
 
+const NAME_KEY = 'mimuro_visitor_name'
+
 export function PublicWallPageComponent() {
   return {
     wall: null,
     loading: true,
     error: null,
+    entered: false,
+    nameInput: '',
     userName: 'Visitante',
     cursors: [],
-    canvasRef: { value: null },
     canvasApi: null,
     publicWallTemplate: PublicWallTemplate,
 
@@ -30,10 +37,14 @@ export function PublicWallPageComponent() {
         return
       }
 
+      // From the moment we land, this page owns the
+      // viewport (no header/footer flicker either way).
+      this.$store.app.immersive = true
       await this.loadWall(slug)
     },
 
     destroy() {
+      this.$store.app.immersive = false
       this.canvasApi?.destroy()
       wsClient.disconnect()
     },
@@ -43,17 +54,33 @@ export function PublicWallPageComponent() {
       this.error = null
 
       try {
-        // The backend still needs a slug lookup; until
-        // then this is the closest available endpoint.
         this.wall = await api.request(`/walls/slug/${slug}`)
-        this.userName = this.$store.auth.user?.name || 'Visitante'
+
+        // Signed-in visitors already have a name. Anonymous
+        // ones that already signed in this tab keep the one
+        // they entered; otherwise we show the prompt.
+        if (this.$store.auth.user) {
+          this.userName = this.$store.auth.user.name
+          this.entered = true
+        } else {
+          const saved = sessionStorage.getItem(NAME_KEY)
+          if (saved) {
+            this.userName = saved
+            this.nameInput = saved
+            this.entered = true
+          }
+        }
+
+        // The public wall owns the whole viewport: the app
+        // header/footer/nav disappear (restored on destroy).
+        this.$store.app.immersive = true
 
         // The canvas only exists once the view has
         // rendered, so the flag has to drop and the
         // DOM has to settle before it can be wired.
         this.loading = false
         await this.$nextTick()
-        this.initCanvas()
+        if (!(await this.initCanvas())) return
 
         await this.loadStrokes()
         this.connectWebSocket()
@@ -65,19 +92,44 @@ export function PublicWallPageComponent() {
               ? 'No pudimos conectar con el servidor.'
               : 'No se pudo cargar el muro'
         this.loading = false
+        this.$store.app.immersive = false
       }
     },
 
-    initCanvas() {
-      // Alpine's ref assigns the element itself, while
-      // useCanvas expects a ref object.
-      this.canvasApi = useCanvas({ value: this.canvasRef }, {
+    enterWall() {
+      const name = this.nameInput.trim()
+      if (name.length < 2) {
+        this.$store.toast.info('Escribí tu nombre para firmar')
+        return
+      }
+      this.userName = name
+      sessionStorage.setItem(NAME_KEY, name)
+      this.entered = true
+      this.$store.toast.success(`¡Hola, ${name}! Dejá tu firma en el muro`)
+    },
+
+    async initCanvas() {
+      // Alpine only registers `x-ref`, and the canvas lives inside
+      // an x-if branch, so wait for the element before wiring up.
+      for (let attempt = 0; attempt < 10 && !this.$refs.canvasRef; attempt++) {
+        await this.$nextTick()
+      }
+
+      const canvasEl = this.$refs.canvasRef
+      if (typeof canvasEl?.getContext !== 'function') {
+        this.error = 'No pudimos inicializar el lienzo.'
+        this.loading = false
+        return false
+      }
+
+      this.canvasApi = useCanvas({ value: canvasEl }, {
         // Public walls are open, so visitors can sign.
         readOnly: false,
         backgroundColor: this.wall?.background_color || '#ffffff',
         onStrokeComplete: (stroke) => this.handleStrokeComplete(stroke)
       })
       this.canvasApi.init()
+      return true
     },
 
     async loadStrokes() {
@@ -123,10 +175,6 @@ export function PublicWallPageComponent() {
       return this.$store.auth.user?.id || null
     },
 
-    get shareUrl() {
-      return `${window.location.origin}/w/${this.wall?.slug}`
-    },
-
     undo() {
       if (this.canvasApi?.undo()) {
         const strokes = this.canvasApi.getStrokes()
@@ -136,15 +184,6 @@ export function PublicWallPageComponent() {
 
     redo() {
       this.canvasApi?.redo()
-    },
-
-    async copyShareUrl() {
-      try {
-        await navigator.clipboard.writeText(this.shareUrl)
-        this.$store.toast.success('Link copiado al portapapeles')
-      } catch {
-        this.$store.toast.info('Copia el link desde la barra de direcciones')
-      }
     }
   }
 }
@@ -156,10 +195,11 @@ export function registerPublicWallPage(Alpine) {
 export const PublicWallTemplate = `
 <div class="page page--wall"
      data-wall-page
-     @keydown.ctrl.z.prevent="undo()"
-     @keydown.ctrl.y.prevent="redo()"
-     @keydown.meta.z.prevent="undo()"
-     @keydown.meta.y.prevent="redo()">
+     :class="{ 'is-immersive': wall && !loading && !error }"
+     @keydown.ctrl.z.prevent="entered && undo()"
+     @keydown.ctrl.y.prevent="entered && redo()"
+     @keydown.meta.z.prevent="entered && undo()"
+     @keydown.meta.y.prevent="entered && redo()">
 
   <template x-if="loading">
     <div class="state" role="status">
@@ -184,75 +224,76 @@ export const PublicWallTemplate = `
     </div>
   </template>
 
-  <template x-if="wall && !loading && !error">
-
-    <header class="wall-header">
-      <div class="container wall-header__inner">
-        <div class="wall-header__info">
-          <h1 class="wall-header__title" x-text="wall.title"></h1>
-          <div class="wall-header__meta">
-            <span class="avatar avatar--sm"
-                  x-text="(wall.owner_name || '?').charAt(0).toUpperCase()"></span>
-            <span x-text="wall.owner_name || 'Desconocido'"></span>
-            <span class="badge badge--success">Público</span>
-          </div>
-        </div>
-
-        <div class="wall-header__actions">
-          <span class="wall-guest-note">Firma con el dedo o el ratón</span>
-        </div>
-      </div>
-    </header>
-
-    <div class="wall-toolbar-bar">
-      <div class="container">
-        <div x-data="toolbarComponent">
-          <div x-html="$store.templates.toolbar"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="wall-stage">
-      <div class="container">
-        <div class="wall-canvas-frame"
-             :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
-          <div class="wall-canvas-holder">
-            <canvas class="wall-canvas"
-                    ref="canvasRef"
-                    role="application"
-                    aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
-
-            <div class="wall-cursors" aria-hidden="true">
-              <template x-for="cursor in cursors" :key="cursor.user_id">
-                <div class="remote-cursor"
-                     :style="'left: ' + cursor.x + 'px; top: ' + cursor.y + 'px; --cursor-color: ' + (cursor.color || '#7c3aed')">
-                  <span class="remote-cursor__pointer"></span>
-                  <span class="remote-cursor__label" x-text="cursor.name"></span>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <footer class="wall-footer">
-      <div class="container wall-footer__inner">
-        <p class="wall-footer__hint">
-          Mantén pulsado y arrastra para firmar.
-          <span class="wall-footer__keys">
-            <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer · <kbd>Ctrl</kbd>+<kbd>Y</kbd> rehacer.
-          </span>
+  <!-- Name prompt: the canvas (blurred behind) is already
+       loaded and shows every signature left so far. -->
+  <template x-if="wall && !loading && !error && !entered">
+    <div class="wall-enter" role="dialog" aria-modal="true" aria-labelledby="wall-enter-title">
+      <div class="wall-enter__panel">
+        <h1 class="wall-enter__title" id="wall-enter-title">Te toca firmar</h1>
+        <p class="wall-enter__subtitle">
+          Decinos tu nombre y dejá tu firma en
+          <strong class="wall-enter__wall" x-text="wall.title"></strong>.
         </p>
 
-        <div class="wall-share">
-          <span class="text-muted">Link para compartir:</span>
-          <span class="wall-share__url" x-text="shareUrl"></span>
-          <button type="button" class="link-button" @click="copyShareUrl()">Copiar</button>
+        <form class="wall-enter__form" @submit.prevent="enterWall()">
+          <input class="field__input wall-enter__input"
+                 type="text"
+                 x-model="nameInput"
+                 maxlength="40"
+                 autocomplete="nickname"
+                 placeholder="Tu nombre"
+                 aria-label="Tu nombre"
+                 required>
+          <button type="submit" class="btn btn--primary btn--lg btn--block"
+                  :disabled="!nameInput.trim()">
+            Entrar a firmar
+          </button>
+        </form>
+
+        <p class="wall-enter__hint" x-show="!$store.auth.isAuthenticated">
+          Lo verán los demás junto a tu firma.
+        </p>
+      </div>
+    </div>
+  </template>
+
+  <!-- Floating toolbar: only once the visitor is in -->
+  <div class="wall-toolbar-bar wall-toolbar-bar--floating"
+       x-show="wall && !loading && !error && entered"
+       x-cloak>
+    <div class="wall-toolbar-bar__inner">
+      <div x-data="toolbarComponent">
+        <div x-html="$store.templates.toolbar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The canvas owns the whole viewport in immersive mode.
+       Loading happens as soon as the wall is known (behind
+       the name prompt) so every prior signature is already
+       in place the moment someone enters. -->
+  <template x-if="wall && !loading && !error">
+    <div class="wall-stage">
+      <div class="wall-canvas-frame"
+           :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
+        <div class="wall-canvas-holder">
+          <canvas class="wall-canvas"
+                  x-ref="canvasRef"
+                  role="application"
+                  aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
+
+          <div class="wall-cursors" aria-hidden="true">
+            <template x-for="cursor in cursors" :key="cursor.user_id">
+              <div class="remote-cursor"
+                   :style="'left: ' + cursor.x + 'px; top: ' + cursor.y + 'px; --cursor-color: ' + (cursor.color || '#7c3aed')">
+                <span class="remote-cursor__pointer"></span>
+                <span class="remote-cursor__label" x-text="cursor.name"></span>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
-    </footer>
-
+    </div>
   </template>
 </div>
 `

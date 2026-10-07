@@ -76,18 +76,35 @@ export async function initAuth(Alpine, apiClient = api) {
     },
 
     async register(email, password, name) {
+      // El registro NO crea sesión: la cuenta queda pendiente
+      // hasta que se ingresa el código que llega por correo.
       this.error = null
       try {
         const data = await apiClient.auth.register(email, password, name)
-        this.persistTokens(data, true)
-        this.user = data.user
-        Alpine.store('app').setUser(data.user)
-        Alpine.store('toast').success('¡Cuenta creada! Ya puedes crear tu primer muro')
-        return data.user
+        return data
       } catch (error) {
         this.error = error.message || 'Error al registrar'
         throw error
       }
+    },
+
+    async confirmRegistration(email, code, remember = true) {
+      this.error = null
+      try {
+        const data = await apiClient.auth.confirmEmail(email, code)
+        this.persistTokens(data, remember)
+        this.user = data.user
+        Alpine.store('app').setUser(data.user)
+        Alpine.store('toast').success('¡Cuenta confirmada! Ya puedes crear tu primer muro')
+        return data.user
+      } catch (error) {
+        this.error = error.message || 'Error al confirmar el correo'
+        throw error
+      }
+    },
+
+    async resendConfirmation(email) {
+      return apiClient.auth.resendConfirmation(email)
     },
 
     persistTokens(data, remember) {

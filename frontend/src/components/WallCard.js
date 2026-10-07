@@ -116,8 +116,7 @@ export const WallCardTemplate = `
       <span class="wall-card__owner-name" x-text="wall.owner_name || 'Desconocido'"></span>
     </div>
 
-    <div class="wall-card__actions">
-      <template x-if="isOwner">
+    <div class="wall-card__actions" x-show="isOwner">
         <button type="button" class="btn btn--ghost btn--icon btn--sm"
                 @click.stop="copyShareUrl()" title="Copiar link" aria-label="Copiar link para compartir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -143,7 +142,6 @@ export const WallCardTemplate = `
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
         </button>
-      </template>
     </div>
   </div>
 </article>

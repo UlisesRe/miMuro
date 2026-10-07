@@ -1,6 +1,7 @@
 import secrets
 import string
 import json
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Set
 
@@ -11,15 +12,18 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route, WebSocketRoute, Mount
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from starlette.requests import Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.database import engine, Base, get_db
+from app.core.database import engine, Base, get_db, run_light_migrations
+from app.core import confirmation as confirmation_service
+from app.core import email as email_service
 from app.core.security import (
     verify_password, get_password_hash,
     create_access_token, create_refresh_token, decode_token, subject_id
 )
-from app.models import User, Wall, Stroke, ToolType
+from app.models import User, Wall, Stroke, Signer, ToolType
 
 settings = get_settings()
 
@@ -81,6 +85,40 @@ def get_optional_user(request: Request, db: Session) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
 
 
+def get_client_ip(request: Request) -> str:
+    # Detrás de un proxy/nginx la IP real llega en X-Forwarded-For
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return ""
+
+
+def hash_ip(ip: str) -> str:
+    return hashlib.sha256(f"{settings.secret_key}:{ip}".encode("utf-8")).hexdigest()
+
+
+def record_signature(request: Request, wall: Wall, user: Optional[User], db: Session) -> bool:
+    """Registra una firma mientras sea una persona distinta del dueño.
+
+    Cada IP única suma 1 (aunque vuelva a entrar y edite); el dueño
+    dibujando sobre su propio muro nunca cuenta como firma.
+    """
+    if user and wall.owner_id == user.id:
+        return False
+    ip = get_client_ip(request)
+    if not ip:
+        return False
+    ip_hash = hash_ip(ip)
+    exists = db.query(Signer.id).filter(Signer.ip_hash == ip_hash).first() is not None
+    if exists:
+        return False
+    db.add(Signer(ip_hash=ip_hash, wall_id=wall.id, author_id=user.id if user else None))
+    db.commit()
+    return True
+
+
 class HTTPException(Exception):
     def __init__(self, status_code: int, detail: str):
         self.status_code = status_code
@@ -94,6 +132,25 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # ==========================================
 # Auth routes
 # ==========================================
+
+def _pending_registration_response(user: User, email_sent: bool) -> JSONResponse:
+    return JSONResponse({
+        "message": "Código de confirmación enviado a tu correo",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "is_confirmed": False
+        },
+        "email_confirmation": {
+            "required": True,
+            "sent": email_sent,
+            "destiny": user.email,
+            "expires_in_minutes": settings.confirmation_code_expire_minutes,
+            "resend_cooldown_seconds": settings.confirmation_resend_cooldown_seconds
+        }
+    })
+
 
 async def register(request: Request):
     db = next(get_db())
@@ -110,8 +167,20 @@ async def register(request: Request):
         if len(password) < 6:
             return JSONResponse({"detail": "Mínimo 6 caracteres"}, status_code=400)
 
-        if db.query(User).filter(User.email == email).first():
-            return JSONResponse({"detail": "Email ya registrado"}, status_code=400)
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            if existing.is_confirmed:
+                return JSONResponse({"detail": "Email ya registrado"}, status_code=400)
+            # Registro pendiente: retomar el flujo reenviando el código
+            wait = confirmation_service.seconds_until_resend(existing)
+            if wait > 0:
+                return JSONResponse(
+                    {"detail": f"Ya te enviamos un código. Esperá {wait} segundos antes de pedir otro."},
+                    status_code=429
+                )
+            code = confirmation_service.issue_code(existing, db)
+            email_sent = email_service.send_confirmation_email(existing.email, existing.name, code)
+            return _pending_registration_response(existing, email_sent)
 
         user = User(
             email=email,
@@ -122,23 +191,10 @@ async def register(request: Request):
         db.commit()
         db.refresh(user)
 
-        access_token = create_access_token({"sub": user.id})
-        refresh_token = create_refresh_token({"sub": user.id})
+        code = confirmation_service.issue_code(user, db)
+        email_sent = email_service.send_confirmation_email(user.email, user.name, code)
 
-        response = JSONResponse({
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "name": user.name,
-                "created_at": user.created_at.isoformat() if user.created_at else None
-            }
-        })
-        response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="lax", max_age=settings.access_token_expire_minutes * 60)
-        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="lax", max_age=settings.refresh_token_expire_days * 24 * 60 * 60)
-        return response
+        return _pending_registration_response(user, email_sent)
     finally:
         db.close()
 
@@ -154,6 +210,12 @@ async def login(request: Request):
         if not user or not verify_password(password, user.password_hash):
             return JSONResponse({"detail": "Credenciales inválidas"}, status_code=401)
 
+        if not user.is_confirmed:
+            return JSONResponse(
+                {"detail": "Tu registro está pendiente de confirmación. Revisá tu correo para terminarlo."},
+                status_code=403
+            )
+
         access_token = create_access_token({"sub": user.id})
         refresh_token = create_refresh_token({"sub": user.id})
 
@@ -165,6 +227,7 @@ async def login(request: Request):
                 "id": user.id,
                 "email": user.email,
                 "name": user.name,
+                "is_confirmed": bool(user.is_confirmed),
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
         })
@@ -190,6 +253,12 @@ async def refresh_token(request: Request):
         user = db.query(User).filter(User.id == user_id).first() if user_id is not None else None
         if not user:
             return JSONResponse({"detail": "Usuario no encontrado"}, status_code=401)
+
+        if not user.is_confirmed:
+            return JSONResponse(
+                {"detail": "Tu registro está pendiente de confirmación. Revisá tu correo para terminarlo."},
+                status_code=403
+            )
 
         new_access = create_access_token({"sub": user.id})
         new_refresh = create_refresh_token({"sub": user.id})
@@ -217,8 +286,103 @@ async def me(request: Request):
             "id": user.id,
             "email": user.email,
             "name": user.name,
+            "is_confirmed": bool(user.is_confirmed),
             "created_at": user.created_at.isoformat() if user.created_at else None
         })
+    except HTTPException as e:
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+    finally:
+        db.close()
+
+
+async def confirm_email(request: Request):
+    db = next(get_db())
+    try:
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        email = str(data.get("email", "")).strip()
+        code = str(data.get("code", "")).strip()
+
+        if not email:
+            return JSONResponse({"detail": "Email requerido"}, status_code=400)
+        if len(code) != 6 or not code.isdigit():
+            return JSONResponse({"detail": "El código debe tener 6 dígitos"}, status_code=400)
+
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return JSONResponse({"detail": "No hay ningún registro pendiente con ese email"}, status_code=400)
+        if user.is_confirmed:
+            return JSONResponse({"detail": "La cuenta ya está confirmada. Iniciá sesión."}, status_code=400)
+
+        ok, message = confirmation_service.verify_code(user, code, db)
+        if not ok:
+            return JSONResponse({"detail": message}, status_code=400)
+
+        # Registro terminado: se crea la sesión
+        access_token = create_access_token({"sub": user.id})
+        refresh_token = create_refresh_token({"sub": user.id})
+
+        response = JSONResponse({
+            "message": message,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "is_confirmed": True,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        })
+        response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="lax", max_age=settings.access_token_expire_minutes * 60)
+        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="lax", max_age=settings.refresh_token_expire_days * 24 * 60 * 60)
+        return response
+    except HTTPException as e:
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+    finally:
+        db.close()
+
+
+async def resend_confirmation(request: Request):
+    db = next(get_db())
+    try:
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        email = str(data.get("email", "")).strip()
+        if not email:
+            return JSONResponse({"detail": "Email requerido"}, status_code=400)
+
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return JSONResponse({"detail": "No hay ningún registro pendiente con ese email"}, status_code=400)
+        if user.is_confirmed:
+            return JSONResponse({"detail": "La cuenta ya está confirmada. Iniciá sesión."}, status_code=400)
+
+        wait = confirmation_service.seconds_until_resend(user)
+        if wait > 0:
+            return JSONResponse(
+                {"detail": f"Esperá {wait} segundos antes de pedir otro código"},
+                status_code=429
+            )
+
+        code = confirmation_service.issue_code(user, db)
+        sent = email_service.send_confirmation_email(user.email, user.name, code)
+
+        body = {
+            "message": "Código reenviado" if sent else "No se pudo enviar el correo. Reintentá más tarde.",
+            "email_confirmation": {
+                "sent": sent,
+                "destiny": user.email,
+                "expires_in_minutes": settings.confirmation_code_expire_minutes,
+                "resend_cooldown_seconds": settings.confirmation_resend_cooldown_seconds
+            }
+        }
+        return JSONResponse(body, status_code=200 if sent else 502)
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
@@ -229,8 +393,8 @@ async def me(request: Request):
 # Wall routes
 # ==========================================
 
-def wall_to_dict(wall: Wall, owner_name: str = None) -> dict:
-    return {
+def wall_to_dict(wall: Wall, owner_name: str = None, strokes_count: int = None) -> dict:
+    data = {
         "id": wall.id,
         "owner_id": wall.owner_id,
         "title": wall.title,
@@ -241,6 +405,9 @@ def wall_to_dict(wall: Wall, owner_name: str = None) -> dict:
         "updated_at": wall.updated_at.isoformat() if wall.updated_at else None,
         "owner_name": owner_name
     }
+    if strokes_count is not None:
+        data["strokes_count"] = strokes_count
+    return data
 
 
 def stroke_to_dict(stroke: Stroke) -> dict:
@@ -299,7 +466,18 @@ async def list_walls(request: Request):
     try:
         user = get_current_user(request, db)
         walls = db.query(Wall).filter(Wall.owner_id == user.id).order_by(Wall.created_at.desc()).all()
-        return JSONResponse({"walls": [wall_to_dict(w, user.name) for w in walls]})
+        counts = {}
+        if walls:
+            rows = (
+                db.query(Stroke.wall_id, func.count(Stroke.id))
+                .filter(Stroke.wall_id.in_([w.id for w in walls]))
+                .group_by(Stroke.wall_id)
+                .all()
+            )
+            counts = {row[0]: row[1] for row in rows}
+        return JSONResponse({"walls": [
+            wall_to_dict(w, user.name, counts.get(w.id, 0)) for w in walls
+        ]})
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
@@ -319,7 +497,8 @@ async def get_wall(request: Request):
         if not wall.is_public and (not user or wall.owner_id != user.id):
             return JSONResponse({"detail": "No tienes acceso a este muro"}, status_code=403)
 
-        return JSONResponse(wall_to_dict(wall, wall.owner.name))
+        count = db.query(func.count(Stroke.id)).filter(Stroke.wall_id == wall.id).scalar() or 0
+        return JSONResponse(wall_to_dict(wall, wall.owner.name, count))
     finally:
         db.close()
 
@@ -457,6 +636,7 @@ async def create_stroke(request: Request):
         db.add(stroke)
         db.commit()
         db.refresh(stroke)
+        record_signature(request, wall, user, db)
 
         return JSONResponse(stroke_to_dict(stroke), status_code=201)
     except HTTPException as e:
@@ -675,17 +855,35 @@ async def health(request: Request):
     return JSONResponse({"status": "ok"})
 
 
+async def get_stats(request: Request):
+    db = next(get_db())
+    try:
+        walls_count = db.query(func.count(Wall.id)).scalar() or 0
+        # "Firmas totales" = personas (IPs únicas) que firmaron; el dueño no cuenta
+        strokes_count = db.query(func.count(Signer.id)).scalar() or 0
+        online = sum(len(conns) for conns in manager.active_connections.values())
+        return JSONResponse({
+            "walls": walls_count,
+            "strokes": strokes_count,
+            "online": online
+        })
+    finally:
+        db.close()
+
+
 # ==========================================
 # App setup
 # ==========================================
 
 Base.metadata.create_all(bind=engine)
+run_light_migrations()
 
 app = Starlette(
     debug=settings.debug,
     routes=[
         Route("/api/", health, methods=["GET"]),
         Route("/api/health", health, methods=["GET"]),
+        Route("/api/stats", get_stats, methods=["GET"]),
 
         # Auth
         Route("/api/auth/register", register, methods=["POST"]),
@@ -693,6 +891,8 @@ app = Starlette(
         Route("/api/auth/refresh", refresh_token, methods=["POST"]),
         Route("/api/auth/logout", logout, methods=["POST"]),
         Route("/api/auth/me", me, methods=["GET"]),
+        Route("/api/auth/confirm", confirm_email, methods=["POST"]),
+        Route("/api/auth/resend-confirmation", resend_confirmation, methods=["POST"]),
 
         # Walls
         Route("/api/walls", create_wall, methods=["POST"]),

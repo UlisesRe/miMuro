@@ -67,6 +67,14 @@
   --gradient-brand-hover: linear-gradient(135deg, #1e293b 0%, #2d3a4f 55%, #475569 100%);
   --gradient-surface: linear-gradient(180deg, var(--color-bg-subtle) 0%, var(--color-bg) 100%);
 
+  /* Panels that carry light text on top. Stays dark in
+     both themes so the copy never flips to white-on-white. */
+  --gradient-panel: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
+  --gradient-panel-hover: linear-gradient(135deg, #1e293b 0%, #2d3a4f 55%, #475569 100%);
+  /* Ink for controls sitting on a white surface inside a dark panel */
+  --color-on-panel-ink: #0f172a;
+  --color-on-panel-ink-hover: #1e293b;
+
   /* ----------------------------------------
      Typography
      Outfit for display, Plus Jakarta Sans
@@ -244,6 +252,10 @@
   --gradient-brand: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 55%, #94a3b8 100%);
   --gradient-brand-hover: linear-gradient(135deg, #ffffff 0%, #f1f5f9 55%, #cbd5e1 100%);
   --gradient-surface: linear-gradient(180deg, var(--color-bg-subtle) 0%, var(--color-bg) 100%);
+
+  /* Lifted so the panel still reads as raised against #101317 */
+  --gradient-panel: linear-gradient(135deg, #1e293b 0%, #334155 55%, #475569 100%);
+  --gradient-panel-hover: linear-gradient(135deg, #334155 0%, #3f4e66 55%, #64748b 100%);
 
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
   --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);

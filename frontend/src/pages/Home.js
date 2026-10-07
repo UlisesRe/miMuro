@@ -2,9 +2,14 @@
 // miMuro - Home Page
 // ========================================
 
+import { api } from '../services/api.js'
+
 export function HomePageComponent() {
   return {
     homePageTemplate: HomePageTemplate,
+
+    // Live platform counters (filled from /api/stats)
+    stats: { walls: 0, strokes: 0, online: 0 },
 
     // Animated preview inside the hero
     previewFrame: null,
@@ -17,10 +22,31 @@ export function HomePageComponent() {
     async init() {
       // Wait for layout so the canvas has a size
       this.$nextTick(() => this.startPreview())
+      this.loadStats()
+
+      // Keep counters fresh when walls are created,
+      // edited, reset or deleted anywhere in the app.
+      this._statsRefreshHandler = () => this.loadStats()
+      window.addEventListener('walls:changed', this._statsRefreshHandler)
     },
 
     destroy() {
       this.stopPreview()
+      window.removeEventListener('walls:changed', this._statsRefreshHandler)
+    },
+
+    async loadStats() {
+      try {
+        const data = await api.stats.get()
+        this.stats = {
+          walls: data?.walls ?? this.stats.walls,
+          strokes: data?.strokes ?? this.stats.strokes,
+          online: data?.online ?? this.stats.online
+        }
+      } catch {
+        // Keep the previous numbers; the counters are
+        // decorative and must never break the page.
+      }
     },
 
     getStarted() {
@@ -271,8 +297,8 @@ export const HomePageTemplate = `
           </span>
 
           <h1 id="hero-title" class="hero__title">
-            Crea tu muro.
-            <span class="hero__title-accent">Deja que lo firmen.</span>
+            <span class="hero__title-main">Crea tu muro.</span>
+            <span class="hero__title-accent">Haz que lo firmen.</span>
           </h1>
 
           <p class="hero__text">
@@ -308,20 +334,20 @@ export const HomePageTemplate = `
     </div>
   </section>
 
-  <!-- Social Proof - real counters starting at 0 -->
+  <!-- Social Proof - live counters -->
   <section class="section section--muted" aria-labelledby="stats-title">
     <div class="container">
       <div class="stats" role="region" aria-label="Estadísticas en tiempo real">
         <div class="stat">
-          <span class="stat__value" x-data="{ count: 0 }" x-init="setInterval(() => count = Math.min(count + 1, 0), 1000)" x-text="count"></span>
+          <span class="stat__value" x-text="stats.online"></span>
           <span class="stat__label">Personas firmando ahora</span>
         </div>
         <div class="stat">
-          <span class="stat__value" x-data="{ count: 0 }" x-init="setInterval(() => count = Math.min(count + 1, 0), 1000)" x-text="count"></span>
+          <span class="stat__value" x-text="stats.walls"></span>
           <span class="stat__label">Muros creados</span>
         </div>
         <div class="stat">
-          <span class="stat__value" x-data="{ count: 0 }" x-init="setInterval(() => count = Math.min(count + 1, 0), 1000)" x-text="count"></span>
+          <span class="stat__value" x-text="stats.strokes"></span>
           <span class="stat__label">Firmas totales</span>
         </div>
       </div>

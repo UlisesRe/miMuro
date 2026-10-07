@@ -216,6 +216,15 @@
   resize: vertical;
 }
 
+/* Email confirmation code: wide letters, centered */
+.field__input--code {
+  text-align: center;
+  font-size: max(1.25rem, 20px);
+  letter-spacing: 0.4em;
+  font-weight: var(--weight-semibold);
+  padding-inline-start: calc(var(--space-sm) + 0.4em);
+}
+
 .field__input::placeholder,
 .field__textarea::placeholder {
   color: var(--color-text-muted);
@@ -689,7 +698,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: var(--z-overlay);
+  z-index: var(--z-modal);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1021,16 +1030,32 @@
   box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
 }
 
+/* White disc + dark tick: readable on every swatch,
+   the white one included. */
+.color-swatch[aria-pressed='true']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgb(24 24 27 / 0.4);
+  pointer-events: none;
+}
+
 .color-swatch[aria-pressed='true']::after {
   content: '';
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 0.625rem;
-  height: 0.3125rem;
-  border: solid #18181b;
-  border-width: 0 2px 2px 0;
-  transform: translateY(-15%) rotate(45deg);
+  width: 0.75rem;
+  height: 0.4rem;
+  border: solid #0f172a;
+  border-width: 0 3px 3px 0;
+  transform: translateY(-0.0625rem) rotate(45deg);
+  pointer-events: none;
 }
 
 /* ========================================
@@ -1277,4 +1302,223 @@
 .wall-card__actions {
   display: flex;
   gap: var(--space-3xs);
+}
+
+/* ========================================
+   Wall overlay (full-screen from dashboard)
+   ======================================== */
+
+.wall-overlay {
+  position: fixed;
+  inset: 0;
+  /* Below the create/edit sheets (z-modal) so "Editar datos"
+     opened from the overlay still shows its form on top. */
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg);
+  animation: modal-fade var(--duration-base) var(--ease-out);
+}
+
+.wall-overlay__inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wall-overlay__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.wall-overlay__info {
+  min-width: 0;
+}
+
+.wall-overlay__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-overlay__badges {
+  margin-top: var(--space-3xs);
+}
+
+.wall-overlay__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.wall-overlay__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  flex: 1 1 auto;
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+}
+
+/* View mode: the JPG */
+.wall-overlay__view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-md);
+  overflow: auto;
+}
+
+.wall-overlay__image {
+  max-width: 100%;
+  max-height: calc(100dvh - 12rem);
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  background-color: var(--color-surface);
+}
+
+.wall-overlay__share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-md);
+}
+
+/* Edit mode: toolbar + full-bleed canvas */
+.wall-overlay__edit {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wall-overlay__toolbar {
+  /* Anchors the toolbar's absolute dropdowns; without
+     this they would position against the fixed overlay. */
+  position: relative;
+  padding: var(--space-xs) var(--space-sm);
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.wall-overlay__footer {
+  padding: var(--space-xs) var(--space-md);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.wall-overlay__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Phones: hide the text labels, keep the icons */
+@media (max-width: 639px) {
+  .wall-overlay__actions .btn--sm {
+    padding-inline: var(--space-xs);
+  }
+
+  .wall-overlay__bar {
+    padding-inline: var(--space-sm);
+  }
+}
+/* ========================================
+   Share wall sheet
+   ======================================== */
+
+.share-field {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.share-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.share-grid__label {
+  margin: var(--space-md) 0 var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.share-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-xs);
+}
+
+.share-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) var(--space-2xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: none;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
+}
+
+.share-item:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface);
+}
+
+.share-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-full);
+  color: #fff;
+  background-color: var(--color-border-strong);
+}
+
+.share-item__icon svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.share-item__icon--whatsapp { background-color: #25d366; }
+.share-item__icon--telegram { background-color: #229ed9; }
+.share-item__icon--x         { background-color: #0f1419; }
+.share-item__icon--facebook  { background-color: #1877f2; }
+.share-item__icon--linkedin  { background-color: #0a66c2; }
+
+.share-item > span:last-child {
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }

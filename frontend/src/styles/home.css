@@ -108,20 +108,73 @@
   letter-spacing: -0.03em;
 }
 
-/* The one word that carries the brand */
-.hero__title-accent {
+/* The static line of the headline. The accent below
+   carries the brand; this one is plain so the hand-
+   written word pops against it. */
+.hero__title-main {
   display: block;
+}
+
+/* The one word that carries the brand. Paint-splash
+   treatment: gradient-clipped glyphs over a soft
+   organic blob, with droplets flung around it. */
+.hero__title-accent {
+  position: relative;
+  display: inline-block;
   font-family: var(--font-hand);
   font-weight: var(--weight-bold);
   font-size: 1.15em;
   line-height: 1.05;
   letter-spacing: 0;
+  white-space: nowrap;
+  /* The gradient is clipped to the glyphs, so the box has
+     to reach past the baseline or descenders fall outside
+     the painted area and disappear. */
+  padding-bottom: 0.25em;
+  margin-bottom: -0.25em;
   background: var(--gradient-brand);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   /* Slight rotation reads as a hand annotation */
-  transform: rotate(-1.5deg);
+  transform: rotate(-2deg);
+}
+
+/* Soft paint blob behind the phrase */
+.hero__title-accent::before {
+  content: '';
+  position: absolute;
+  inset: -8% -4% -4%;
+  z-index: -1;
+  background: var(--gradient-brand);
+  opacity: 0.12;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+  transform: rotate(3deg);
+}
+
+/* Splatter droplets flung around the text */
+.hero__title-accent::after {
+  content: '';
+  position: absolute;
+  width: 0.35em;
+  height: 0.35em;
+  right: -0.55em;
+  top: 0.1em;
+  background: var(--color-primary);
+  border-radius: 50%;
+  opacity: 0.55;
+  box-shadow:
+    -0.85em -0.35em 0 -0.12em var(--color-accent),
+    -1.4em 0.4em 0 -0.16em var(--color-primary),
+    -0.4em 0.9em 0 -0.14em var(--color-accent),
+    0.3em 1.1em 0 -0.18em var(--color-primary),
+    -1.9em -0.1em 0 -0.2em var(--color-accent);
+}
+
+@media (min-width: 900px) {
+  .hero__title-accent {
+    font-size: 1.3em;
+  }
 }
 
 .hero__text {
@@ -580,7 +633,7 @@
   gap: var(--space-sm);
   padding: var(--space-2xl) var(--space-lg);
   text-align: center;
-  background: var(--gradient-brand);
+  background: var(--gradient-panel);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-brand-lg);
   overflow: hidden;
@@ -635,14 +688,14 @@
 
 /* Inverted button on the gradient panel */
 .btn--on-brand {
-  color: var(--color-primary);
+  color: var(--color-on-panel-ink);
   background-color: #fff;
   border-color: transparent;
   box-shadow: var(--shadow-md);
 }
 
 .btn--on-brand:hover:not(:disabled) {
-  color: var(--color-primary-hover);
+  color: var(--color-on-panel-ink-hover);
   background-color: #fff;
   text-decoration: none;
 }
@@ -657,4 +710,54 @@
   color: #fff;
   background-color: rgb(255 255 255 / 0.22);
   text-decoration: none;
+}
+
+/* ========================================
+   Legal pages (privacy, terms, contact)
+   ======================================== */
+
+.page--legal {
+  background: var(--gradient-surface);
+}
+
+.legal__section {
+  scroll-margin-top: calc(var(--header-height) + var(--space-md));
+}
+
+.legal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  max-width: var(--container-prose);
+  margin: 0 auto;
+}
+
+.legal__heading {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-xl);
+}
+
+.legal__text {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-secondary);
+}
+
+.legal__text--strong {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+.legal__meta {
+  max-width: var(--container-prose);
+  margin: var(--space-xl) auto 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.legal__actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-xl);
 }

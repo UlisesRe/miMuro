@@ -8,7 +8,10 @@ const routes = {
   '/register': 'RegisterPage',
   '/dashboard': 'DashboardPage',
   '/wall/:id': 'WallViewPage',
-  '/w/:slug': 'PublicWallPage'
+  '/w/:slug': 'PublicWallPage',
+  '/privacy': 'LegalPage',
+  '/terms': 'LegalPage',
+  '/contact': 'LegalPage'
 }
 
 const routeParams = new Map()

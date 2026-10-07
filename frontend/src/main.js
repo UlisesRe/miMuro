@@ -25,6 +25,7 @@ import { registerRegisterPage } from './pages/Register.js'
 import { registerDashboardPage } from './pages/Dashboard.js'
 import { registerWallViewPage } from './pages/WallView.js'
 import { registerPublicWallPage } from './pages/PublicWall.js'
+import { registerLegalPage } from './pages/Legal.js'
 
 window.Alpine = Alpine
 
@@ -40,23 +41,59 @@ Alpine.store('app', {
   isAuthenticated: false,
   currentPage: 'HomePage',
 
+  // How many walls the signed-in user owns. Kept in the
+  // shell store so the header badge and tabbar stay in
+  // sync no matter which page is mounted.
+  wallCount: 0,
+
   // The create-wall sheet lives in the shell so the
   // FAB, the header and the dashboard share it.
   createWallOpen: false,
   editWallOpen: false,
   editWallData: null,
 
+  // A page that owns the whole viewport (the public
+  // wall) hides the app header/footer/nav.
+  immersive: false,
+
+  // Full-screen wall overlay opened from the dashboard:
+  // mode "view" shows the JPG, mode "edit" the canvas.
+  wallOverlay: { open: false, mode: null, wallId: null },
+
   setUser(user) {
     this.user = user
     this.isAuthenticated = !!user
+    if (user) {
+      this.refreshWallCount()
+    } else {
+      this.wallCount = 0
+    }
+  },
+
+  async refreshWallCount() {
+    if (!this.isAuthenticated) {
+      this.wallCount = 0
+      return
+    }
+    try {
+      const data = await api.walls.list()
+      const walls = data.walls || data || []
+      this.wallCount = walls.length
+    } catch {
+      // Keep the last known count; the next successful
+      // load will correct it.
+    }
   },
 
   logout() {
     this.user = null
     this.isAuthenticated = false
+    this.wallCount = 0
     this.createWallOpen = false
     this.editWallOpen = false
     this.editWallData = null
+    this.wallOverlay = { open: false, mode: null, wallId: null }
+    this.immersive = false
     localStorage.removeItem('auth_token')
     localStorage.removeItem('refresh_token')
     sessionStorage.removeItem('auth_token')
@@ -86,6 +123,22 @@ Alpine.store('app', {
     this.editWallData = null
   },
 
+  openWallOverlay(mode, wallId) {
+    if (!this.isAuthenticated) {
+      Alpine.store('router').navigate('/login')
+      return
+    }
+    this.wallOverlay = {
+      open: true,
+      mode: mode === 'edit' ? 'edit' : 'view',
+      wallId
+    }
+  },
+
+  closeWallOverlay() {
+    this.wallOverlay = { open: false, mode: null, wallId: null }
+  },
+
   showToast(message, type = 'info', duration) {
     Alpine.store('toast').show(message, type, duration)
   }
@@ -109,6 +162,7 @@ registerRegisterPage(Alpine)
 registerDashboardPage(Alpine)
 registerWallViewPage(Alpine)
 registerPublicWallPage(Alpine)
+registerLegalPage(Alpine)
 
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason)
@@ -120,6 +174,15 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 Alpine.start()
+
+// Keep the wall-count badge in the header and tabbar
+// accurate no matter where a wall is created/destroyed.
+// Only refresh a running session to avoid pointless calls.
+window.addEventListener('walls:changed', () => {
+  if (Alpine.store('app').isAuthenticated) {
+    Alpine.store('app').refreshWallCount()
+  }
+})
 
 // Expose for debugging
 window.router = router

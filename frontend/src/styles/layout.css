@@ -96,65 +96,6 @@
   text-decoration: none;
 }
 
-.header__logo-mark {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  color: var(--color-primary-contrast);
-  background: var(--gradient-brand);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-brand);
-}
-
-.header__logo-mark svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-/* Desktop navigation - hidden on phones */
-.header__nav {
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .header__nav {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3xs);
-  }
-}
-
-.header__link {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  min-height: 2.375rem;
-  padding-inline: var(--space-sm);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  white-space: nowrap;
-  transition:
-    color var(--duration-fast) var(--ease-in-out),
-    background-color var(--duration-fast) var(--ease-in-out);
-}
-
-.header__link:hover {
-  color: var(--color-text);
-  background-color: var(--color-bg-muted);
-  text-decoration: none;
-}
-
-.header__link[aria-current='page'] {
-  color: var(--color-primary);
-  background-color: var(--color-primary-soft);
-  font-weight: var(--weight-semibold);
-}
-
 /* ========================================
    Header actions
    ======================================== */
@@ -320,6 +261,19 @@
   color: var(--color-text-muted);
 }
 
+.user-menu__count {
+  min-width: 1.375rem;
+  margin-left: auto;
+  padding: 0.125rem 0.375rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  color: var(--color-primary-contrast);
+  background: var(--gradient-brand);
+  border-radius: var(--radius-full);
+  text-align: center;
+}
+
 .user-menu__item--danger {
   color: var(--color-error);
 }
@@ -384,6 +338,7 @@
   /* The tab bar is a 1fr auto 1fr grid. Without
      min-width 0 a label can push its track wider
      than the viewport and scroll the page. */
+  position: relative;
   min-width: 0;
   min-height: var(--tap-target);
   padding-block: var(--space-3xs);
@@ -415,6 +370,21 @@
 .tab__icon svg {
   width: 1.375rem;
   height: 1.375rem;
+}
+
+.tab__count {
+  position: absolute;
+  top: 0.25rem;
+  inset-inline-start: calc(50% + 0.625rem);
+  min-width: 1.125rem;
+  padding: 0.125rem 0.3125rem;
+  font-size: 0.625rem;
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  color: var(--color-primary-contrast);
+  background: var(--gradient-brand);
+  border-radius: var(--radius-full);
+  text-align: center;
 }
 
 .tab[aria-current='page'] {
@@ -482,50 +452,50 @@
 
 .footer {
   margin-top: auto;
-  padding-block: var(--space-2xl);
+  padding-block: var(--space-md);
   background-color: var(--color-bg);
   border-top: 1px solid var(--color-border);
 }
 
-.footer__inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-lg);
-  text-align: center;
+/* On phones the fixed tab bar floats over whatever
+   sits at the end of the page. The shell pads its own
+   content, but the footer is a sibling of the shell,
+   so it needs the same reservation when the tab bar
+   is on screen (data-nav mirrors showAppNav). */
+@media (max-width: 767px) {
+  .footer[data-nav='true'] {
+    padding-bottom: calc(var(--space-md) + var(--tabbar-height) + var(--safe-bottom));
+  }
 }
 
-@media (min-width: 768px) {
-  .footer__inner {
-    flex-direction: row;
-    justify-content: space-between;
-    text-align: start;
-  }
+/* Everything sits on a single line: brand,
+   legal links and the sign-off. */
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs) var(--space-lg);
+  text-align: center;
 }
 
 .footer__brand {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-3xs);
-}
-
-@media (min-width: 768px) {
-  .footer__brand {
-    align-items: flex-start;
-  }
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-xs);
 }
 
 .footer__logo {
   font-family: var(--font-display);
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   font-weight: var(--weight-extrabold);
   color: var(--color-text);
 }
 
 .footer__tagline {
-  max-width: 24rem;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
@@ -539,20 +509,11 @@
 .footer__link {
   display: inline-flex;
   align-items: center;
-  min-height: var(--tap-target);
-  font-size: var(--text-sm);
+  padding-block: var(--space-3xs);
+  font-size: var(--text-xs);
   color: var(--color-text-secondary);
 }
 
 .footer__link:hover {
   color: var(--color-primary);
-}
-
-.footer__legal {
-  width: 100%;
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-border);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  text-align: center;
 }

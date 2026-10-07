@@ -11,7 +11,9 @@ import {
   AuthBrandPanelTemplate
 } from './AuthForms.js'
 import { registerWallCardComponent, WallCardTemplate } from './WallCard.js'
+import { registerWallOverlay, WallOverlayTemplate } from './WallOverlay.js'
 import { registerAppComponent } from './App.js'
+import { registerShareWallModal, ShareWallModalTemplate } from './ShareWallModal.js'
 import AppTemplate from './AppTemplate.html?raw'
 
 export function registerAllComponents(Alpine) {
@@ -21,7 +23,9 @@ export function registerAllComponents(Alpine) {
   registerToolbarComponent(Alpine)
   registerAuthComponents(Alpine)
   registerWallCardComponent(Alpine)
+  registerWallOverlay(Alpine)
   registerAppComponent(Alpine)
+  registerShareWallModal(Alpine)
 
   // Markup injected with x-html is compiled by
   // Alpine, not by the template literal it came
@@ -34,9 +38,11 @@ export function registerAllComponents(Alpine) {
     app: AppTemplate,
     toolbar: ToolbarTemplate,
     wallCard: WallCardTemplate,
+    wallOverlay: WallOverlayTemplate,
     loginForm: LoginFormTemplate,
     registerForm: RegisterFormTemplate,
     createWallForm: CreateWallFormTemplate,
-    authBrandPanel: AuthBrandPanelTemplate
+    authBrandPanel: AuthBrandPanelTemplate,
+    shareWallModal: ShareWallModalTemplate
   })
 }

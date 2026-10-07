@@ -123,6 +123,18 @@ export const authApi = {
       body: { email, password, name }
     }),
 
+  confirmEmail: (email, code) =>
+    request('/auth/confirm', {
+      method: 'POST',
+      body: { email, code }
+    }, { skipAuthRefresh: true }),
+
+  resendConfirmation: (email) =>
+    request('/auth/resend-confirmation', {
+      method: 'POST',
+      body: { email }
+    }, { skipAuthRefresh: true }),
+
   login: (email, password) =>
     request('/auth/login', {
       method: 'POST',
@@ -196,12 +208,18 @@ export const usersApi = {
     })
 }
 
+// Stats (public)
+export const statsApi = {
+  get: () => request('/stats', {}, { skipAuthRefresh: true })
+}
+
 // Export all APIs
 export const api = {
   auth: authApi,
   walls: wallsApi,
   strokes: strokesApi,
   users: usersApi,
+  stats: statsApi,
   request,
   ApiError
 }

@@ -33,12 +33,12 @@ export const RegisterPageTemplate = `
         Volver al inicio
       </a>
 
-      <header class="auth__header">
-        <h1 class="auth__title">Crea tu cuenta gratis</h1>
-        <p class="auth__subtitle">Sin tarjeta de crédito y en menos de un minuto.</p>
-      </header>
-
       <div x-data="registerForm">
+        <header class="auth__header" x-show="step === 'form'">
+          <h1 class="auth__title">Crea tu cuenta gratis</h1>
+          <p class="auth__subtitle">Sin tarjeta de crédito y en menos de un minuto.</p>
+        </header>
+
         <div x-html="$store.templates.registerForm"></div>
       </div>
     </div>

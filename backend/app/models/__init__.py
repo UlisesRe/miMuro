@@ -17,6 +17,11 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     name = Column(String(100), nullable=False)
     password_hash = Column(String(255), nullable=False)
+    is_confirmed = Column(Boolean, default=False, nullable=False)
+    confirmation_code_hash = Column(String(64), nullable=True)
+    confirmation_expires_at = Column(DateTime(timezone=True), nullable=True)
+    confirmation_attempts = Column(Integer, default=0, nullable=False)
+    confirmation_sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -55,3 +60,22 @@ class Stroke(Base):
 
     wall = relationship("Wall", back_populates="strokes")
     author = relationship("User", back_populates="strokes")
+
+
+class Signer(Base):
+    """Una firma = una persona que entra por el link y deja un trazo.
+
+    El contador global de "Firmas totales" cuenta IPs únicas, no trazos:
+    cada IP suma 1 aunque vuelva a entrar y edite, y el dueño NO suma.
+    """
+
+    __tablename__ = "signers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ip_hash = Column(String(64), unique=True, index=True, nullable=False)
+    wall_id = Column(Integer, ForeignKey("walls.id"), nullable=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    wall = relationship("Wall")
+    author = relationship("User")

@@ -55,25 +55,205 @@
   display: none;
 }
 
-.walls-grid {
-  display: grid;
-  gap: var(--space-md);
+/* ========================================
+   Mis muros: table (stacked on mobile)
+   ======================================== */
+
+.walls-table-wrap {
+  width: 100%;
 }
 
-@media (min-width: 640px) {
-  .walls-grid {
-    grid-template-columns: repeat(2, 1fr);
+.walls-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.walls-table th {
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.walls-table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.walls-table tbody tr:hover td {
+  background-color: var(--color-bg-subtle);
+}
+
+.walls-table__name {
+  min-width: 0;
+}
+
+.walls-table__title {
+  display: block;
+  font-weight: var(--weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.walls-table__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-top: var(--space-3xs);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.walls-table__cell {
+  white-space: nowrap;
+}
+
+.walls-table__actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Desktop: the five action columns are visible, the kebab is not. */
+@media (min-width: 768px) {
+  .walls-table__actions {
+    display: none;
   }
 }
 
-@media (min-width: 1024px) {
-  .walls-grid {
-    grid-template-columns: repeat(3, 1fr);
+/* Kebab menu (mobile actions) */
+.walls-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.walls-menu__panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + var(--space-3xs));
+  z-index: var(--z-dropdown);
+  min-width: 13rem;
+  padding: var(--space-xs);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+}
+
+.walls-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding-inline: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  text-align: start;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-in-out),
+    background-color var(--duration-fast) var(--ease-in-out);
+}
+
+.walls-menu__item:hover:not(:disabled) {
+  color: var(--color-text);
+  background-color: var(--color-bg-muted);
+}
+
+.walls-menu__item:disabled {
+  cursor: progress;
+}
+
+.walls-menu__item svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
+
+.walls-menu__item--danger {
+  color: var(--color-danger, var(--color-text-secondary));
+}
+
+.walls-menu__item--danger:hover:not(:disabled) {
+  color: var(--color-danger, var(--color-text));
+  background-color: var(--color-danger-soft, var(--color-bg-muted));
+}
+
+.walls-table__row td {
+  transition: background-color var(--duration-fast) var(--ease-in-out);
+}
+
+/* Icon-only on phones (the row already labels itself
+   through aria-label); text label on desktop. */
+.walls-table__label {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .walls-table__label {
+    display: inline;
   }
 }
 
-.wall-card-item {
-  height: 100%;
+/* Mobile: name on the left, kebab actions on the
+   right of the same row (the five action columns
+   collapse into the dropdown). */
+@media (max-width: 767px) {
+  .walls-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .walls-table,
+  .walls-table tbody,
+  .walls-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .walls-table tr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .walls-table td {
+    padding: var(--space-3xs) 0;
+    border-bottom: none;
+  }
+
+  .walls-table__name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .walls-table__cell {
+    display: none;
+  }
+
+  .walls-table__actions {
+    display: block;
+    width: auto;
+    flex-shrink: 0;
+  }
 }
 
 /* ========================================
@@ -309,4 +489,108 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: var(--color-primary);
+}
+/* ========================================
+   Public wall - immersive flow
+   The visitor owns the whole viewport.
+   ======================================== */
+
+/* A page that takes over the screen hides all
+   app chrome: header, footer, tab bar and FAB. */
+.app--immersive .header,
+.app--immersive .footer,
+.app--immersive .tabbar,
+.app--immersive .fab {
+  display: none !important;
+}
+
+.app--immersive .app-shell {
+  padding-bottom: 0;
+}
+
+/* The page fills the viewport; the canvas
+   stretches to the stage, which is the screen. */
+.page--wall.is-immersive {
+  min-height: 100dvh;
+}
+
+.page--wall.is-immersive .wall-stage {
+  min-height: 100dvh;
+}
+
+/* Floating toolbar, paint style */
+.wall-toolbar-bar--floating {
+  position: fixed;
+  top: calc(var(--safe-top) + var(--space-sm));
+  left: 50%;
+  z-index: var(--z-modal);
+  padding: 0;
+  border: none;
+  background: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.wall-toolbar-bar--floating > *,
+.wall-toolbar-bar--floating .toolbar {
+  pointer-events: auto;
+  max-width: calc(100vw - var(--space-md) * 2);
+}
+
+/* Blurred, centred name prompt over the canvas */
+.wall-enter {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  background-color: var(--color-overlay);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  animation: modal-fade var(--duration-base) var(--ease-out);
+}
+
+.wall-enter__panel {
+  width: 100%;
+  max-width: 24rem;
+  padding: var(--space-lg);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+}
+
+.wall-enter__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+
+.wall-enter__subtitle {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-text-secondary);
+}
+
+.wall-enter__wall {
+  color: var(--color-text);
+}
+
+.wall-enter__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.wall-enter__input {
+  font-size: var(--text-lg);
+  text-align: center;
+}
+
+.wall-enter__hint {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
 }

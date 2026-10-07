@@ -8,6 +8,8 @@
 // so screen reader users hear what went wrong.
 // ========================================
 
+import { api } from '../services/api.js'
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 // Matches what the backend already accepts. The
@@ -92,23 +94,19 @@ export function LoginFormComponent() {
       try {
         this.email = normaliseEmail(this.email)
         const user = await this.$store.auth.login(this.email, this.password, this.remember)
-        console.log('[Login] User logged in:', user)
         this.password = ''
-        
-        // Login successful if user returned - redirect immediately
         if (user) {
-          console.log('[Login] Success, redirecting to dashboard...')
           this.$router.replace('/dashboard')
         } else {
-          console.error('[Login] No user returned')
           this.formError = 'Error de autenticación, inténtalo de nuevo'
         }
       } catch (error) {
-        console.error('[Login] Error:', error)
-        this.formError =
-          error?.message && error.message !== 'Error de conexión'
-            ? error.message
-            : 'No pudimos iniciar sesión. Revisa tus datos e inténtalo de nuevo.'
+        const msg = error?.message || ''
+        if (msg.includes('pendiente de confirmación') || msg.includes('Revisá tu correo')) {
+          this.$router.navigate(`/register?email=${encodeURIComponent(this.email)}`)
+          return
+        }
+        this.formError = msg && msg !== 'Error de conexión' ? msg : 'No pudimos iniciar sesión. Revisa tus datos e inténtalo de nuevo.'
       } finally {
         this.loading = false
       }
@@ -142,6 +140,16 @@ export function RegisterFormComponent() {
     formError: null,
     errors: {},
     touched: {},
+
+    // Paso 2: código de confirmación enviado al correo
+    step: 'form',
+    pendingEmail: '',
+    code: '',
+    codeError: null,
+    confirming: false,
+    resending: false,
+    resendIn: 0,
+    _resendTimer: null,
 
     init() {
       const query = this.$router.getQuery()
@@ -276,9 +284,19 @@ export function RegisterFormComponent() {
 
       try {
         this.email = normaliseEmail(this.email)
-        await this.$store.auth.register(this.email, this.password, this.name.trim())
-        // New user: open create wall modal directly
-        this.$store.app.openCreateWall()
+        const data = await this.$store.auth.register(this.email, this.password, this.name.trim())
+
+        // El registro pasa al paso del código: la sesión se
+        // crea recién cuando el correo queda confirmado.
+        this.pendingEmail = this.email
+        this.password = ''
+        this.confirmPassword = ''
+        this.code = ''
+        this.codeError = null
+        this.step = 'code'
+        this.startResendCooldown(data?.email_confirmation?.resend_cooldown_seconds ?? 60)
+        this.$store.toast.info(`Código enviado a ${this.pendingEmail}`, 6000)
+        this.$nextTick(() => this.$refs.codeInput?.focus())
       } catch (error) {
         this.formError =
           error?.message && error.message !== 'Error de conexión'
@@ -287,6 +305,99 @@ export function RegisterFormComponent() {
       } finally {
         this.loading = false
       }
+    },
+
+    onCodeInput() {
+      this.code = String(this.code).replace(/\D/g, '').slice(0, 6)
+      this.codeError = null
+    },
+
+    async confirmCode() {
+      if (this.confirming) return
+
+      const code = String(this.code).replace(/\D/g, '')
+      if (code.length !== 6) {
+        this.codeError = 'El código tiene 6 dígitos'
+        return
+      }
+
+      this.confirming = true
+      this.codeError = null
+
+      try {
+        await this.$store.auth.confirmRegistration(this.pendingEmail, code, true)
+        this.stopResendCooldown()
+        const name = this.$store.auth.user?.name || this.name.trim() || ''
+        const message = name ? `Bienvenido/a ${name}` : 'Bienvenido/a'
+        this.$store.toast.success(message)
+        this.$router.navigate('/mis-muros')
+      } catch (error) {
+        this.codeError =
+          error?.message && error.message !== 'Error de conexión'
+            ? error.message
+            : 'No pudimos confirmar tu correo. Revisa el código e inténtalo de nuevo.'
+        this.code = ''
+        this.$nextTick(() => {
+          this.$refs.codeAlert?.focus()
+          this.$refs.codeInput?.focus()
+        })
+      } finally {
+        this.confirming = false
+      }
+    },
+
+    async resendCode() {
+      if (this.resending || this.resendIn > 0) return
+
+      this.resending = true
+      this.codeError = null
+
+      try {
+        const data = await this.$store.auth.resendConfirmation(this.pendingEmail)
+        this.startResendCooldown(data?.email_confirmation?.resend_cooldown_seconds ?? 60)
+        this.$store.toast.success('Código reenviado')
+      } catch (error) {
+        const message = error?.message || 'No pudimos reenviar el código'
+        // El backend responde 429 con los segundos que faltan
+        const waitMatch = message.match(/(\d+)\s*segundos/)
+        if (error?.status === 429 && waitMatch) {
+          this.startResendCooldown(Number(waitMatch[1]))
+          this.codeError = message
+        } else {
+          this.codeError = message
+        }
+      } finally {
+        this.resending = false
+      }
+    },
+
+    startResendCooldown(seconds) {
+      this.stopResendCooldown()
+      this.resendIn = Math.max(0, Number(seconds) || 0)
+      if (this.resendIn <= 0) return
+      this._resendTimer = setInterval(() => {
+        this.resendIn -= 1
+        if (this.resendIn <= 0) this.stopResendCooldown()
+      }, 1000)
+    },
+
+    stopResendCooldown() {
+      if (this._resendTimer) {
+        clearInterval(this._resendTimer)
+        this._resendTimer = null
+      }
+      this.resendIn = 0
+    },
+
+    backToForm() {
+      this.step = 'form'
+      this.code = ''
+      this.codeError = null
+      this.stopResendCooldown()
+    },
+
+    destroy() {
+      this.stopResendCooldown()
     },
 
     goToLogin() {
@@ -324,12 +435,14 @@ export function CreateWallFormComponent() {
       this.loading = true
 
       try {
-        const wall = await this.$api.walls.create({
+        const wall = await api.walls.create({
           title: this.title.trim(),
           is_public: this.isPublic,
           background_color: this.backgroundColor
         })
         this.$store.app.closeCreateWall()
+        this.$store.app.wallCount += 1
+        window.dispatchEvent(new CustomEvent('walls:changed'))
         this.$store.toast.success('¡Tu muro está listo!')
         this.$router.navigate(`/wall/${wall.id}`)
       } catch (error) {
@@ -386,7 +499,7 @@ export function EditWallFormComponent() {
       this.loading = true
 
       try {
-        await this.$api.walls.update(this.wall.id, {
+        await api.walls.update(this.wall.id, {
           title: this.title.trim(),
           is_public: this.isPublic,
           background_color: this.backgroundColor
@@ -545,7 +658,7 @@ export const LoginFormTemplate = `
 // ========================================
 
 export const RegisterFormTemplate = `
-<form class="auth-form" @submit.prevent="submit()" novalidate x-ref="form" :aria-busy="loading">
+<form class="auth-form" x-show="step === 'form'" @submit.prevent="submit()" novalidate x-ref="form" :aria-busy="loading">
 
   <div class="auth-form__alert" x-ref="alert"
        x-show="formError || errorCount > 0" x-cloak
@@ -727,6 +840,79 @@ export const RegisterFormTemplate = `
     <a href="/login" class="auth-form__switch" @click.prevent="goToLogin()">Entra a mi cuenta</a>
   </p>
 </form>
+
+<div class="auth-form" x-show="step === 'code'" x-cloak>
+
+  <div class="auth-form__alert" x-ref="codeAlert"
+       x-show="codeError" x-cloak
+       role="alert" tabindex="-1">
+    ${ICONS.alert}
+    <span x-text="codeError"></span>
+  </div>
+
+  <header class="auth__header">
+    <h1 class="auth__title">Confirmá tu correo</h1>
+    <p class="auth__subtitle">
+      Enviamos un código de 6 dígitos a <strong x-text="pendingEmail"></strong>.
+      Revisa tu bandeja de entrada y también el spam.
+    </p>
+  </header>
+
+  <div class="field">
+    <label class="field__label" for="register-code">Código de confirmación</label>
+    <div class="field__control">
+      <input class="field__input field__input--code"
+             id="register-code"
+             type="text"
+             inputmode="numeric"
+             autocomplete="one-time-code"
+             maxlength="6"
+             enterkeyhint="done"
+             placeholder="000000"
+             x-ref="codeInput"
+             x-model="code"
+             x-on:input="onCodeInput()"
+             :aria-invalid="codeError ? 'true' : 'false'"
+             :aria-describedby="codeError ? 'register-code-error' : 'register-code-hint'">
+    </div>
+    <p class="field__hint" id="register-code-hint" x-show="!codeError">
+      El código vence en unos minutos. Si no lo encuentras, revisá el spam.
+    </p>
+    <p class="field__error" id="register-code-error" x-show="codeError" x-cloak role="alert">
+      ${ICONS.alert}<span x-text="codeError"></span>
+    </p>
+  </div>
+
+  <div class="auth-form__submit-sticky">
+    <button type="button" class="btn btn--primary btn--lg btn--block"
+            @click="confirmCode()"
+            :disabled="confirming || code.length !== 6" :data-busy="confirming ? 'true' : 'false'">
+      <span class="spinner" x-show="confirming" x-cloak aria-hidden="true"></span>
+      <span x-text="confirming ? 'Confirmando...' : 'Confirmar y terminar'"></span>
+    </button>
+  </div>
+
+  <div class="auth-form__submit-inline">
+    <button type="button" class="btn btn--primary btn--lg btn--block"
+            @click="confirmCode()"
+            :disabled="confirming || code.length !== 6" :data-busy="confirming ? 'true' : 'false'">
+      <span class="spinner" x-show="confirming" x-cloak aria-hidden="true"></span>
+      <span x-text="confirming ? 'Confirmando...' : 'Confirmar y terminar'"></span>
+    </button>
+  </div>
+
+  <div class="auth-form__row">
+    <button type="button" class="link-button" @click="resendCode()"
+            :disabled="resending || resendIn > 0"
+            x-text="resendIn > 0 ? 'Reenviar en ' + resendIn + 's' : (resending ? 'Reenviando...' : 'Reenviar código')"></button>
+    <button type="button" class="link-button" @click="backToForm()">Usar otro correo</button>
+  </div>
+
+  <p class="auth-form__footer">
+    ¿Ya tienes cuenta?
+    <a href="/login" class="auth-form__switch" @click.prevent="goToLogin()">Entra a mi cuenta</a>
+  </p>
+</div>
 `
 
 // ========================================
@@ -770,12 +956,13 @@ export const AuthBrandPanelTemplate = `
 
 export const WALL_AVAILABLE_COLORS = [
   { value: '#ffffff', label: 'Blanco' },
-  { value: '#f8fafc', label: 'Gris claro' },
-  { value: '#f1f5f9', label: 'Slate 50' },
-  { value: '#e2e8f0', label: 'Slate 100' },
   { value: '#e0f2fe', label: 'Cielo' },
-  { value: '#dbeafe', label: 'Azul suave' },
-  { value: '#f4f4f5', label: 'Gris neutro' }
+  { value: '#bbf7d0', label: 'Menta' },
+  { value: '#fde047', label: 'Limón' },
+  { value: '#fdba74', label: 'Melocotón' },
+  { value: '#f9a8d4', label: 'Flamingo' },
+  { value: '#c4b5fd', label: 'Lila' },
+  { value: '#e2e8f0', label: 'Nubes' }
 ]
 
 // Emitted as a JS array literal with single quotes:

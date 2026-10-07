@@ -1,7 +1,10 @@
 """JWT `sub` must be a string for python-jose to decode it."""
 
+import uuid
+
 from starlette.testclient import TestClient
 
+from app.core import email as email_service
 from app.core.security import create_access_token, decode_token, subject_id
 from app.main import app
 
@@ -16,30 +19,32 @@ def test_access_token_with_integer_user_id_can_be_decoded():
     assert subject_id(payload) == 42
 
 
-def test_register_then_me_accepts_issued_token():
+def test_register_then_me_accepts_issued_token(monkeypatch):
+    sent = {}
+
+    def fake_send(to_email, name, code):
+        sent[to_email] = code
+        return True
+
+    monkeypatch.setattr(email_service, "send_confirmation_email", fake_send)
+
     client = TestClient(app)
-    email = "jwt-sub-fix@example.com"
+    email = f"jwt-{uuid.uuid4().hex[:10]}@example.com"
 
     register = client.post(
         "/api/auth/register",
-        json={
-            "email": email,
-            "name": "Jwt Sub",
-            "password": "secret1",
-        },
+        json={"email": email, "name": "Jwt Sub", "password": "secret1"},
     )
-    if register.status_code == 400:
-        login = client.post(
-            "/api/auth/login",
-            json={"email": email, "password": "secret1"},
-        )
-        assert login.status_code == 200
-        token = login.json()["access_token"]
-        user_id = login.json()["user"]["id"]
-    else:
-        assert register.status_code == 200
-        token = register.json()["access_token"]
-        user_id = register.json()["user"]["id"]
+    assert register.status_code == 200
+    assert "access_token" not in register.json()
+
+    confirm = client.post(
+        "/api/auth/confirm",
+        json={"email": email, "code": sent[email]},
+    )
+    assert confirm.status_code == 200, confirm.text
+    token = confirm.json()["access_token"]
+    user_id = confirm.json()["user"]["id"]
 
     me = client.get(
         "/api/auth/me",
