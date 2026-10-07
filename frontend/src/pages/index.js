@@ -10,7 +10,6 @@ export { registerHomePage, HomePageTemplate } from './Home.js'
 export { registerLoginPage, LoginPageTemplate } from './Login.js'
 export { registerRegisterPage, RegisterPageTemplate } from './Register.js'
 export { registerDashboardPage, DashboardPageTemplate } from './Dashboard.js'
-export { registerWallViewPage, WallViewTemplate } from './WallView.js'
 export { registerPublicWallPage, PublicWallTemplate } from './PublicWall.js'
 
 export function registerAllPages(Alpine) {
@@ -18,6 +17,5 @@ export function registerAllPages(Alpine) {
   registerLoginPage(Alpine)
   registerRegisterPage(Alpine)
   registerDashboardPage(Alpine)
-  registerWallViewPage(Alpine)
   registerPublicWallPage(Alpine)
 }

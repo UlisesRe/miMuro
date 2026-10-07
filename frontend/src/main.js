@@ -23,7 +23,6 @@ import { registerHomePage } from './pages/Home.js'
 import { registerLoginPage } from './pages/Login.js'
 import { registerRegisterPage } from './pages/Register.js'
 import { registerDashboardPage } from './pages/Dashboard.js'
-import { registerWallViewPage } from './pages/WallView.js'
 import { registerPublicWallPage } from './pages/PublicWall.js'
 import { registerLegalPage } from './pages/Legal.js'
 
@@ -160,7 +159,6 @@ registerHomePage(Alpine)
 registerLoginPage(Alpine)
 registerRegisterPage(Alpine)
 registerDashboardPage(Alpine)
-registerWallViewPage(Alpine)
 registerPublicWallPage(Alpine)
 registerLegalPage(Alpine)
 

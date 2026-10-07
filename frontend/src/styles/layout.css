@@ -22,12 +22,21 @@
   padding-bottom: 0;
 }
 
-@media (min-width: 768px) {
 /* ========================================
    App shell
+   .app-root is the wrapper <div> that holds
+   the x-html injection; it must stretch to
+   fill #app, otherwise .app never gets the
+   spare height the footer needs.
    .app is the flex column that lets the
    footer stick to the bottom on short pages.
    ======================================== */
+
+.app-root {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
 
 .app {
   display: flex;
@@ -35,7 +44,8 @@
   flex-direction: column;
 }
 
-.app-shell {
+@media (min-width: 768px) {
+  .app-shell {
     padding-bottom: 0;
   }
 }

@@ -7,7 +7,6 @@ const routes = {
   '/login': 'LoginPage',
   '/register': 'RegisterPage',
   '/dashboard': 'DashboardPage',
-  '/wall/:id': 'WallViewPage',
   '/w/:slug': 'PublicWallPage',
   '/privacy': 'LegalPage',
   '/terms': 'LegalPage',

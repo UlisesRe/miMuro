@@ -37,7 +37,8 @@ export function WallCardComponent() {
 
     handleClick() {
       if (this.confirming) return
-      this.$router.navigate(`/wall/${this.wall.id}`)
+      // The wall opens in the dashboard overlay, same as "Ver".
+      this.$store.app.openWallOverlay('view', this.wall.id)
     },
 
     handleEdit() {

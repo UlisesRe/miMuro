@@ -1,4 +1,6 @@
-<div class="app" :class="{ 'app--immersive': $store.app.immersive }">
+<div class="app"
+     :class="{ 'app--immersive': $store.app.immersive }"
+     :data-wall-overlay="$store.app.wallOverlay.open ? 'true' : 'false'">
 
   <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
 
@@ -126,10 +128,6 @@
 
     <template x-if="currentPage === 'DashboardPage'">
       <div x-data="dashboardPage"><div x-html="dashboardPageTemplate"></div></div>
-    </template>
-
-    <template x-if="currentPage === 'WallViewPage'">
-      <div x-data="wallViewPage"><div x-html="wallViewTemplate"></div></div>
     </template>
 
     <template x-if="currentPage === 'PublicWallPage'">

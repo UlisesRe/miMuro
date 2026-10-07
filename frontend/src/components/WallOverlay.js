@@ -6,49 +6,21 @@
 // ========================================
 
 import { api } from '../services/api.js'
-import { useCanvas } from '../hooks/useCanvas.js'
+import { useCanvas, WALL_SIZE } from '../hooks/useCanvas.js'
 import { wsClient } from '../services/ws.js'
+import { trackOverlayInsets } from '../utils/overlayInsets.js'
 
-const JPEG_MAX_SIDE = 2048
-const JPEG_PADDING = 64
-
-// Renders strokes into an offscreen canvas sized to the
-// drawing's bounding box (strokes store absolute CSS
-// pixels from whatever viewport drew them), then exports
-// a JPEG. Eraser strokes are painted with the wall colour
-// because destination-out would export as transparency and
-// JPEG has no alpha channel. The grid is UI chrome and is
-// deliberately left out of the shared image.
+// Renders the wall exactly as it lives: the fixed
+// 1080x1080 logical square. The grid is UI chrome and
+// is deliberately left out of the shared image.
 async function renderWallJpg(strokes, backgroundColor) {
   const canvas = document.createElement('canvas')
-
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-
-  for (const stroke of strokes) {
-    for (const point of stroke.points || []) {
-      if (point.x < minX) minX = point.x
-      if (point.y < minY) minY = point.y
-      if (point.x > maxX) maxX = point.x
-      if (point.y > maxY) maxY = point.y
-    }
-  }
-
-  const hasPoints = Number.isFinite(minX)
-  const width = hasPoints ? maxX - minX + JPEG_PADDING * 2 : 1200
-  const height = hasPoints ? maxY - minY + JPEG_PADDING * 2 : 800
-  const scale = Math.min(1, JPEG_MAX_SIDE / Math.max(width, height))
-
-  canvas.width = Math.max(1, Math.round(width * scale))
-  canvas.height = Math.max(1, Math.round(height * scale))
+  canvas.width = WALL_SIZE
+  canvas.height = WALL_SIZE
 
   const ctx = canvas.getContext('2d')
-  ctx.scale(scale, scale)
   ctx.fillStyle = backgroundColor
-  ctx.fillRect(0, 0, width, height)
-  if (hasPoints) ctx.translate(-minX + JPEG_PADDING, -minY + JPEG_PADDING)
+  ctx.fillRect(0, 0, WALL_SIZE, WALL_SIZE)
 
   for (const stroke of strokes) {
     const points = stroke.points || []
@@ -102,11 +74,15 @@ export function WallOverlayComponent() {
       this.wallId = overlay.wallId
       // The overlay covers the page; stop the body behind it from scrolling.
       document.body.style.overflow = 'hidden'
+      // Publish the footer height so the overlay stops
+      // exactly where the app footer begins.
+      this._stopInsets = trackOverlayInsets(this.$el)
       await this.load()
     },
 
     destroy() {
       document.body.style.overflow = ''
+      this._stopInsets?.()
       this.canvasApi?.destroy()
       wsClient.disconnect()
       window.removeEventListener('wall:updated', this._wallUpdatedHandler)
@@ -402,20 +378,24 @@ export const WallOverlayTemplate = `
       <template x-if="mode === 'edit' && wall">
         <div class="flex items-center gap-xs">
           <button type="button" class="btn btn--ghost btn--sm"
-                  @click="editWall()" title="Editar título, color y visibilidad">
-            Editar datos
-          </button>
-          <button type="button" class="btn btn--ghost btn--sm"
-                  @click="shareLink()" title="Compartir link del muro">
-            Compartir link
-          </button>
-          <button type="button" class="btn btn--ghost btn--sm"
-                  @click="resetWall()" :disabled="busy" title="Limpiar todos los trazos">
-            Reiniciar
+                  @click="resetWall()" :disabled="busy" title="Limpiar todos los trazos"
+                  aria-label="Reiniciar: limpiar todos los trazos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+            <span class="btn__label">Reiniciar</span>
           </button>
           <button type="button" class="btn btn--danger btn--sm"
-                  @click="deleteCurrentWall()" :disabled="busy" title="Eliminar muro">
-            Eliminar
+                  @click="deleteCurrentWall()" :disabled="busy" title="Eliminar muro"
+                  aria-label="Eliminar muro">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M19 6l-1 14H6L5 6"></path>
+              <path d="M10 11v6M14 11v6"></path>
+            </svg>
+            <span class="btn__label">Eliminar</span>
           </button>
         </div>
       </template>
@@ -452,13 +432,19 @@ export const WallOverlayTemplate = `
     </div>
   </template>
 
-  <!-- View mode: the JPG, nothing else -->
+  <!-- View mode: the JPG inside the same framed stage as
+       the public wall, so the export mirrors what people
+       see when they open the link -->
   <template x-if="mode === 'view' && wall && !loading && !error">
-    <div class="wall-overlay__view">
-      <img class="wall-overlay__image"
-           x-show="imageUrl"
-           :src="imageUrl"
-           :alt="'Dibujo del muro ' + wall.title">
+    <div class="wall-overlay__media">
+      <div class="wall-stage wall-stage--framed wall-stage--image">
+        <div class="container">
+          <img class="wall-overlay__image"
+               x-show="imageUrl"
+               :src="imageUrl"
+               :alt="'Dibujo del muro ' + wall.title">
+        </div>
+      </div>
 
       <div class="wall-overlay__share" x-show="imageUrl">
         <button type="button" class="btn btn--primary"
@@ -483,14 +469,16 @@ export const WallOverlayTemplate = `
         </div>
       </div>
 
-      <div class="wall-stage">
-        <div class="wall-canvas-frame"
-             :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
-          <div class="wall-canvas-holder">
-            <canvas class="wall-canvas"
-                    x-ref="canvasRef"
-                    role="application"
-                    aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
+      <div class="wall-stage wall-stage--framed">
+        <div class="container">
+          <div class="wall-canvas-frame wall-canvas-frame--framed"
+               :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
+            <div class="wall-canvas-holder">
+              <canvas class="wall-canvas"
+                      x-ref="canvasRef"
+                      role="application"
+                      aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
+            </div>
           </div>
         </div>
       </div>

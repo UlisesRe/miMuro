@@ -19,7 +19,7 @@ export const RegisterPageTemplate = `
 <div class="page page--auth">
   <div class="container auth__inner">
 
-    <section class="auth__brand" aria-label="Sobre miMuro">
+    <section class="auth__brand bubbles" aria-label="Sobre miMuro">
       <div x-html="$store.templates.authBrandPanel"></div>
     </section>
 

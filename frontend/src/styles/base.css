@@ -385,6 +385,91 @@ blockquote {
   color: var(--color-primary);
 }
 
+/* Handwritten accent phrase sitting on a soft organic
+   blob. The light cousin of the hero treatment: same
+   fonts and palette, but no droplets and no rotation,
+   so the hero headline stays the only one of its kind. */
+.accent-mark {
+  position: relative;
+  z-index: 0;
+  display: inline-block;
+  font-family: var(--font-hand);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--color-primary);
+}
+
+.accent-mark::before {
+  content: '';
+  position: absolute;
+  inset: -4% -5% -12% -5%;
+  z-index: -1;
+  background: var(--gradient-brand);
+  opacity: 0.1;
+  border-radius: 58% 42% 55% 45% / 48% 55% 45% 52%;
+}
+
+/* Same mark on dark panels: the slate gradient would
+   disappear against the dark background, so it flips
+   to white ink with a white blob. */
+.accent-mark--on-dark {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: #fff;
+}
+
+.accent-mark--on-dark::before {
+  background: #fff;
+  opacity: 0.16;
+}
+
+/* ========================================
+   Decorative background bubbles
+   Thin outlined circles drifting behind a section.
+   Purely decorative: no pointer events, and nothing
+   is drawn on phones where it would crowd content.
+   ======================================== */
+
+.bubbles {
+  position: relative;
+  z-index: 0;
+}
+
+@media (min-width: 768px) {
+  .bubbles::before,
+  .bubbles::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* Big open ring, top corner */
+  .bubbles::before {
+    top: 7%;
+    inset-inline-end: 4%;
+    width: clamp(7rem, 13vw, 11rem);
+    aspect-ratio: 1;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
+  }
+
+  /* Small ring, bottom corner, with one filled
+     droplet flung from it by the box-shadow. */
+  .bubbles::after {
+    bottom: 12%;
+    inset-inline-start: 6%;
+    width: 3rem;
+    aspect-ratio: 1;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+    box-shadow: 5.5rem -6.5rem 0 -0.9rem color-mix(in srgb, var(--color-primary) 8%, transparent);
+  }
+}
+
 /* ========================================
    Spacing utilities
    ======================================== */

@@ -33,7 +33,10 @@
 @media (min-width: 960px) {
   .auth__inner {
     grid-template-columns: 1fr 26rem;
-    align-items: center;
+    /* Top-aligned: the brand story starts at the same
+       height as the form instead of floating centred
+       against it. */
+    align-items: start;
     gap: var(--space-3xl);
     min-height: calc(100dvh - var(--header-height) - var(--safe-top));
     padding-block: var(--space-2xl);
@@ -61,13 +64,6 @@
   margin: 0;
   font-size: var(--text-3xl);
   max-width: 22ch;
-}
-
-.auth__brand-title .font-hand {
-  background: var(--gradient-brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .auth__brand-text {
@@ -126,6 +122,10 @@
    ======================================== */
 
 .auth__panel {
+  position: relative;
+  /* Paints above the brand column's decorative
+     bubbles so they never cross the form. */
+  z-index: 1;
   width: 100%;
   padding: var(--space-lg);
   background-color: var(--color-surface);

@@ -2,18 +2,19 @@
 // miMuro - Public Wall Page (for /w/:slug)
 //
 // Flow:
-//   1. The visitor lands on a full-screen,
-//      blurred view of the wall.
+//   1. The visitor lands on a blurred view of
+//      the wall inside the normal app page
+//      (header, footer and nav stay visible).
 //   2. They type their name and confirm.
-//   3. The whole viewport becomes the canvas
-//      plus the (floating) drawing toolbar,
-//      paint-style. Signed-in users skip the
-//      name prompt.
+//   3. The framed canvas becomes drawable plus
+//      the floating drawing palette.
+//      Signed-in users skip the name prompt.
 // ========================================
 
 import { api } from '../services/api.js'
 import { useCanvas } from '../hooks/useCanvas.js'
 import { wsClient } from '../services/ws.js'
+import { trackOverlayInsets } from '../utils/overlayInsets.js'
 
 const NAME_KEY = 'mimuro_visitor_name'
 
@@ -37,14 +38,11 @@ export function PublicWallPageComponent() {
         return
       }
 
-      // From the moment we land, this page owns the
-      // viewport (no header/footer flicker either way).
-      this.$store.app.immersive = true
       await this.loadWall(slug)
     },
 
     destroy() {
-      this.$store.app.immersive = false
+      this._stopEnter?.()
       this.canvasApi?.destroy()
       wsClient.disconnect()
     },
@@ -71,15 +69,17 @@ export function PublicWallPageComponent() {
           }
         }
 
-        // The public wall owns the whole viewport: the app
-        // header/footer/nav disappear (restored on destroy).
-        this.$store.app.immersive = true
-
         // The canvas only exists once the view has
         // rendered, so the flag has to drop and the
         // DOM has to settle before it can be wired.
         this.loading = false
         await this.$nextTick()
+        // The name prompt is a fixed layer too: give it
+        // the same header/footer insets so the app chrome
+        // never disappears behind it.
+        this._stopEnter = trackOverlayInsets(
+          document.querySelector('.wall-enter')
+        )
         if (!(await this.initCanvas())) return
 
         await this.loadStrokes()
@@ -92,7 +92,6 @@ export function PublicWallPageComponent() {
               ? 'No pudimos conectar con el servidor.'
               : 'No se pudo cargar el muro'
         this.loading = false
-        this.$store.app.immersive = false
       }
     },
 
@@ -195,7 +194,6 @@ export function registerPublicWallPage(Alpine) {
 export const PublicWallTemplate = `
 <div class="page page--wall"
      data-wall-page
-     :class="{ 'is-immersive': wall && !loading && !error }"
      @keydown.ctrl.z.prevent="entered && undo()"
      @keydown.ctrl.y.prevent="entered && redo()"
      @keydown.meta.z.prevent="entered && undo()"
@@ -257,39 +255,39 @@ export const PublicWallTemplate = `
     </div>
   </template>
 
-  <!-- Floating toolbar: only once the visitor is in -->
-  <div class="wall-toolbar-bar wall-toolbar-bar--floating"
-       x-show="wall && !loading && !error && entered"
+  <!-- Drawing palette: round floating handle, drag to move -->
+  <div x-show="wall && !loading && !error && entered"
        x-cloak>
-    <div class="wall-toolbar-bar__inner">
-      <div x-data="toolbarComponent">
-        <div x-html="$store.templates.toolbar"></div>
-      </div>
+    <div x-data="toolbarComponent">
+      <div x-html="$store.templates.toolbar"></div>
     </div>
   </div>
 
-  <!-- The canvas owns the whole viewport in immersive mode.
-       Loading happens as soon as the wall is known (behind
-       the name prompt) so every prior signature is already
-       in place the moment someone enters. -->
+  <!-- The framed canvas keeps the site look: container gutters,
+       border and rounded corners. It flex-fills the height the
+       app shell leaves free below the header. Loading happens
+       as soon as the wall is known (behind the name prompt) so
+       every prior signature is already in place on entry. -->
   <template x-if="wall && !loading && !error">
-    <div class="wall-stage">
-      <div class="wall-canvas-frame"
-           :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
-        <div class="wall-canvas-holder">
-          <canvas class="wall-canvas"
-                  x-ref="canvasRef"
-                  role="application"
-                  aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
+    <div class="wall-stage wall-stage--framed">
+      <div class="container">
+        <div class="wall-canvas-frame wall-canvas-frame--framed"
+             :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
+          <div class="wall-canvas-holder">
+            <canvas class="wall-canvas"
+                    x-ref="canvasRef"
+                    role="application"
+                    aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
 
-          <div class="wall-cursors" aria-hidden="true">
-            <template x-for="cursor in cursors" :key="cursor.user_id">
-              <div class="remote-cursor"
-                   :style="'left: ' + cursor.x + 'px; top: ' + cursor.y + 'px; --cursor-color: ' + (cursor.color || '#7c3aed')">
-                <span class="remote-cursor__pointer"></span>
-                <span class="remote-cursor__label" x-text="cursor.name"></span>
-              </div>
-            </template>
+            <div class="wall-cursors" aria-hidden="true">
+              <template x-for="cursor in cursors" :key="cursor.user_id">
+                <div class="remote-cursor"
+                     :style="'left: ' + cursor.x + 'px; top: ' + cursor.y + 'px; --cursor-color: ' + (cursor.color || '#7c3aed')">
+                  <span class="remote-cursor__pointer"></span>
+                  <span class="remote-cursor__label" x-text="cursor.name"></span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </div>

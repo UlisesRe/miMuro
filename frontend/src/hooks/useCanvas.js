@@ -1,17 +1,27 @@
 // ========================================
 // miMuro - Canvas Hook
+//
+// The wall is a fixed 1080x1080 logical
+// square. The frame is fitted into the
+// space the layout gives it and the
+// context is scaled, so every device
+// draws, stores and shows the exact same
+// wall (only zoomed to fit).
 // ========================================
+
+export const WALL_SIZE = 1080
+const GRID_STEP = 90
+const GRID_LINE = 1.5
 
 export function useCanvas(canvasRef, options = {}) {
   const {
-    width = 800,
-    height = 600,
-    backgroundColor = '#ffffff',
+    backgroundColor: defaultBackground = '#ffffff',
     onStrokeComplete,
     onStrokeUpdate,
     readOnly: initialReadOnly = false
   } = options
 
+  let backgroundColor = defaultBackground
   let readOnly = initialReadOnly
 
   let ctx = null
@@ -24,9 +34,56 @@ export function useCanvas(canvasRef, options = {}) {
   let color = '#000000'
   let lineWidth = 3
   let lastPoint = null
+  let frameObserver = null
 
   // Touch handling
   let activeTouches = new Map()
+
+  // Largest square that fits the space the frame was
+  // given, so the frame (border, radius) hugs the
+  // square canvas instead of wrapping a rectangle.
+  function fitFrame() {
+    const canvas = canvasRef.value
+    const frame = canvas?.closest('.wall-canvas-frame')
+    const parent = frame?.parentElement
+    if (!frame || !parent) return
+
+    const cs = getComputedStyle(parent)
+    const availW =
+      parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
+    const availH =
+      parent.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0)
+    const side = Math.floor(Math.min(availW, availH))
+
+    // Not laid out yet (hidden or zero-height): keep the
+    // current size and wait for the next layout pass.
+    if (side < 64) return
+
+    frame.style.flex = '0 0 auto'
+    frame.style.width = `${side}px`
+    frame.style.height = `${side}px`
+    frame.style.margin = 'auto'
+  }
+
+  // Maps CSS pixels to the 1080 logical space: everything
+  // drawn and stored lives in that space from now on.
+  function applyTransform() {
+    const canvas = canvasRef.value
+    if (!canvas || !ctx) return
+    const rect = canvas.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+
+    const sx = WALL_SIZE / rect.width
+    const sy = WALL_SIZE / rect.height
+    ctx.setTransform(sx, 0, 0, sy, 0, 0)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }
+
+  function layout() {
+    fitFrame()
+    applyTransform()
+  }
 
   function init() {
     if (!canvasRef.value) return
@@ -34,19 +91,13 @@ export function useCanvas(canvasRef, options = {}) {
     const canvas = canvasRef.value
     ctx = canvas.getContext('2d')
 
-    // Set canvas size (account for device pixel ratio)
-    const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
+    // Fixed logical resolution: the buffer never changes,
+    // only the CSS size (and the context scale) does, so
+    // existing strokes stay put when the layout moves.
+    canvas.width = WALL_SIZE
+    canvas.height = WALL_SIZE
 
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
-
-    ctx.scale(dpr, dpr)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-
+    layout()
     drawBackground()
     redrawAllStrokes()
 
@@ -61,7 +112,13 @@ export function useCanvas(canvasRef, options = {}) {
     canvas.addEventListener('touchend', onTouchEnd)
     canvas.addEventListener('touchcancel', onTouchEnd)
 
-    window.addEventListener('resize', onResize)
+    window.addEventListener('resize', layout)
+
+    const frame = canvas.closest('.wall-canvas-frame')
+    if (frame?.parentElement && typeof ResizeObserver !== 'undefined') {
+      frameObserver = new ResizeObserver(() => layout())
+      frameObserver.observe(frame.parentElement)
+    }
   }
 
   function destroy() {
@@ -78,30 +135,9 @@ export function useCanvas(canvasRef, options = {}) {
     canvas.removeEventListener('touchend', onTouchEnd)
     canvas.removeEventListener('touchcancel', onTouchEnd)
 
-    window.removeEventListener('resize', onResize)
-  }
-
-  function onResize() {
-    if (!canvasRef.value) return
-    const canvas = canvasRef.value
-    const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
-
-    // Save current strokes
-    const savedStrokes = [...strokes]
-
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
-
-    ctx.scale(dpr, dpr)
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-
-    strokes = savedStrokes
-    drawBackground()
-    redrawAllStrokes()
+    window.removeEventListener('resize', layout)
+    frameObserver?.disconnect()
+    frameObserver = null
   }
 
   function getPointFromEvent(event) {
@@ -109,10 +145,12 @@ export function useCanvas(canvasRef, options = {}) {
     const rect = canvas.getBoundingClientRect()
     const clientX = event.clientX || event.touches?.[0]?.clientX || 0
     const clientY = event.clientY || event.touches?.[0]?.clientY || 0
+    const sx = rect.width ? WALL_SIZE / rect.width : 1
+    const sy = rect.height ? WALL_SIZE / rect.height : 1
 
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+      x: (clientX - rect.left) * sx,
+      y: (clientY - rect.top) * sy,
       pressure: event.pressure || 1,
       time: Date.now()
     }
@@ -257,30 +295,27 @@ export function useCanvas(canvasRef, options = {}) {
 
   function drawBackground() {
     if (!ctx) return
-    const canvas = canvasRef.value
-    const rect = canvas.getBoundingClientRect()
 
     ctx.fillStyle = backgroundColor
-    ctx.fillRect(0, 0, rect.width, rect.height)
+    ctx.fillRect(0, 0, WALL_SIZE, WALL_SIZE)
 
     // Draw subtle grid
-    drawGrid(rect.width, rect.height)
+    drawGrid()
   }
 
-  function drawGrid(width, height) {
+  function drawGrid() {
     if (!ctx) return
-    const gridSize = 50
     ctx.strokeStyle = '#e2e8f0'
-    ctx.lineWidth = 0.5
+    ctx.lineWidth = GRID_LINE
 
     ctx.beginPath()
-    for (let x = 0; x <= width; x += gridSize) {
+    for (let x = 0; x <= WALL_SIZE; x += GRID_STEP) {
       ctx.moveTo(x, 0)
-      ctx.lineTo(x, height)
+      ctx.lineTo(x, WALL_SIZE)
     }
-    for (let y = 0; y <= height; y += gridSize) {
+    for (let y = 0; y <= WALL_SIZE; y += GRID_STEP) {
       ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
+      ctx.lineTo(WALL_SIZE, y)
     }
     ctx.stroke()
   }

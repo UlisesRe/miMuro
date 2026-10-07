@@ -18,6 +18,10 @@
 
 .hero {
   position: relative;
+  /* Stacking context so the decorative circles below
+     stay behind the copy instead of following the
+     nearest ancestor up to the root. */
+  z-index: 0;
   padding-block: var(--space-2xl) var(--space-3xl);
   background: var(--gradient-surface);
   overflow: hidden;
@@ -31,9 +35,26 @@
   position: absolute;
   top: -30%;
   inset-inline-end: -20%;
+  z-index: -1;
   width: min(28rem, 90vw);
   aspect-ratio: 1;
   background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 18%, transparent) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Open ring drifting on the opposite corner: the
+   same bubble motif as the rest of the site, kept
+   quiet so the headline stays the loudest thing. */
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: -5rem;
+  inset-inline-start: -4rem;
+  z-index: -1;
+  width: min(17rem, 45vw);
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-radius: 50%;
   pointer-events: none;
 }
 
@@ -110,9 +131,11 @@
 
 /* The static line of the headline. The accent below
    carries the brand; this one is plain so the hand-
-   written word pops against it. */
+   written word pops against it. The margin gives the
+   two phrases room to breathe without hitting. */
 .hero__title-main {
   display: block;
+  margin-bottom: 0.22em;
 }
 
 /* The one word that carries the brand. Paint-splash

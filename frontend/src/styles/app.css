@@ -334,15 +334,6 @@
   }
 }
 
-.wall-toolbar-bar {
-  position: sticky;
-  top: calc(var(--header-height) + var(--safe-top) + 3.25rem);
-  z-index: var(--z-sticky);
-  padding-block: var(--space-xs);
-  background-color: var(--color-bg-subtle);
-  border-bottom: 1px solid var(--color-border);
-}
-
 .wall-stage {
   flex: 1 1 auto;
   display: flex;
@@ -491,12 +482,17 @@
   color: var(--color-primary);
 }
 /* ========================================
-   Public wall - immersive flow
-   The visitor owns the whole viewport.
+   Public wall - framed flow
+   The page keeps the app chrome (header,
+   footer, tab bar) and the canvas sits in
+   a bordered frame, like the rest of the
+   site. The stage still flex-fills the
+   height the shell leaves free.
    ======================================== */
 
 /* A page that takes over the screen hides all
-   app chrome: header, footer, tab bar and FAB. */
+   app chrome: header, footer, tab bar and FAB.
+   Kept for future full-screen modes. */
 .app--immersive .header,
 .app--immersive .footer,
 .app--immersive .tabbar,
@@ -508,39 +504,28 @@
   padding-bottom: 0;
 }
 
-/* The page fills the viewport; the canvas
-   stretches to the stage, which is the screen. */
-.page--wall.is-immersive {
-  min-height: 100dvh;
+.wall-stage--framed {
+  padding-block: var(--space-md);
 }
 
-.page--wall.is-immersive .wall-stage {
-  min-height: 100dvh;
+.wall-stage--framed .container {
+  display: flex;
 }
 
-/* Floating toolbar, paint style */
-.wall-toolbar-bar--floating {
-  position: fixed;
-  top: calc(var(--safe-top) + var(--space-sm));
-  left: 50%;
-  z-index: var(--z-modal);
-  padding: 0;
-  border: none;
-  background: none;
-  transform: translateX(-50%);
-  pointer-events: none;
+.wall-canvas-frame--framed {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
 }
 
-.wall-toolbar-bar--floating > *,
-.wall-toolbar-bar--floating .toolbar {
-  pointer-events: auto;
-  max-width: calc(100vw - var(--space-md) * 2);
-}
-
-/* Blurred, centred name prompt over the canvas */
+/* Blurred, centred name prompt over the canvas.
+   It keeps the header and footer visible: same
+   insets as the wall overlay, measured by
+   overlayInsets.js. */
 .wall-enter {
   position: fixed;
-  inset: 0;
+  inset: calc(var(--header-height) + var(--safe-top)) 0
+    var(--overlay-bottom, 0px) 0;
   z-index: var(--z-overlay);
   display: flex;
   align-items: center;

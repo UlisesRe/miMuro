@@ -330,7 +330,7 @@ export function RegisterFormComponent() {
         const name = this.$store.auth.user?.name || this.name.trim() || ''
         const message = name ? `Bienvenido/a ${name}` : 'Bienvenido/a'
         this.$store.toast.success(message)
-        this.$router.navigate('/mis-muros')
+        this.$router.navigate('/dashboard')
       } catch (error) {
         this.codeError =
           error?.message && error.message !== 'Error de conexión'
@@ -444,7 +444,8 @@ export function CreateWallFormComponent() {
         this.$store.app.wallCount += 1
         window.dispatchEvent(new CustomEvent('walls:changed'))
         this.$store.toast.success('¡Tu muro está listo!')
-        this.$router.navigate(`/wall/${wall.id}`)
+        // Stay on the current page (mis muros): the wall is
+        // opened later from its "Editar" action or its link.
       } catch (error) {
         this.error = error?.message || 'No pudimos crear el muro'
       } finally {
@@ -923,7 +924,7 @@ export const RegisterFormTemplate = `
 
 export const AuthBrandPanelTemplate = `
   <h2 class="auth__brand-title">
-    Un lienzo que se llena de <span class="font-hand">firmas</span>
+    Un lienzo que se llena de <span class="accent-mark">firmas</span>
   </h2>
 
   <p class="auth__brand-text">

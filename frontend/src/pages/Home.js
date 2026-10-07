@@ -383,7 +383,7 @@ export const HomePageTemplate = `
   </section>
 
   <!-- Features - solo título + grid, sin descripciones -->
-  <section class="section section--tint" aria-label="Funcionalidades">
+  <section class="section section--tint bubbles" aria-label="Funcionalidades">
     <div class="container">
       <div class="section-head">
         <span class="section-head__eyebrow">Funcionalidades</span>
@@ -438,7 +438,9 @@ export const HomePageTemplate = `
   <section class="cta" aria-labelledby="cta-title">
     <div class="container">
       <div class="cta__panel">
-        <h2 id="cta-title" class="cta__title">¿Listo para abrir tu muro?</h2>
+        <h2 id="cta-title" class="cta__title">
+          ¿Listo para abrir <span class="accent-mark accent-mark--on-dark">tu muro</span>?
+        </h2>
         <p class="cta__text">Tarda menos de un minuto. Sin tarjeta de crédito y sin compromiso.</p>
         <div class="cta__actions">
           <button type="button" class="btn btn--lg btn--on-brand" @click="getStarted()"
