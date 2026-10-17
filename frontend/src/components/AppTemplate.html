@@ -1,6 +1,4 @@
-<div class="app"
-     :class="{ 'app--immersive': $store.app.immersive }"
-     :data-wall-overlay="$store.app.wallOverlay.open ? 'true' : 'false'">
+<div class="app">
 
   <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
 
@@ -50,7 +48,7 @@
             <a href="/login" class="btn btn--ghost header__desktop-only"
                @click.prevent="$router.navigate('/login')">Entrar</a>
             <a href="/register" class="btn btn--primary btn--sm"
-               @click.prevent="$router.navigate('/register')">Crear miMuro</a>
+               @click.prevent="$router.navigate('/register')">Crear cuenta</a>
           </div>
         </template>
 
@@ -88,9 +86,7 @@
                   <rect x="3" y="14" width="7" height="7"></rect>
                   <rect x="14" y="14" width="7" height="7"></rect>
                 </svg>
-                Mis muros
-                <span class="user-menu__count" x-show="$store.app.wallCount > 0"
-                      x-text="$store.app.wallCount"></span>
+                Mi muro
               </a>
 
               <button type="button" class="user-menu__item user-menu__item--danger"
@@ -130,6 +126,10 @@
       <div x-data="dashboardPage"><div x-html="dashboardPageTemplate"></div></div>
     </template>
 
+    <template x-if="currentPage === 'WallEditorPage'">
+      <div x-data="wallEditorPage"><div x-html="wallEditorTemplate"></div></div>
+    </template>
+
     <template x-if="currentPage === 'PublicWallPage'">
       <div x-data="publicWallPage"><div x-html="publicWallTemplate"></div></div>
     </template>
@@ -141,9 +141,9 @@
     <template x-if="currentPage === 'NotFoundPage'">
       <div class="container not-found">
         <p class="not-found__code">404</p>
-        <h1 class="section-head__title">Esta pared no existe</h1>
+        <h1 class="section-head__title">Esta página no existe</h1>
         <p class="section-head__text">
-          El enlace puede estar mal escrito o el muro se eliminó.
+          El enlace puede estar mal escrito o la página se movió.
         </p>
         <a href="/" class="btn btn--primary btn--lg" @click.prevent="$router.navigate('/')">
           Volver al inicio
@@ -157,7 +157,7 @@
     <div class="container footer__inner">
       <div class="footer__brand">
         <span class="footer__logo">miMuro</span>
-        <p class="footer__tagline">Tu lienzo digital para compartir.</p>
+        <p class="footer__tagline">El muro donde tu gente deja su huella.</p>
       </div>
 
       <nav class="footer__nav" aria-label="Enlaces legales">
@@ -168,8 +168,7 @@
     </div>
   </footer>
 
-  <!-- Mobile bottom navigation. The middle slot is
-       deliberately empty: the FAB floats over it. -->
+  <!-- Mobile bottom navigation -->
   <nav class="tabbar" x-show="showAppNav" aria-label="Navegación principal">
     <a href="/" class="tab" :aria-current="isActive('HomePage') ? 'page' : null"
        @click.prevent="$router.navigate('/')">
@@ -182,8 +181,6 @@
       Inicio
     </a>
 
-    <span class="tabbar__spacer" aria-hidden="true"></span>
-
     <a href="/dashboard" class="tab" :aria-current="isActive('DashboardPage') ? 'page' : null"
        @click.prevent="$router.navigate('/dashboard')">
       <span class="tab__icon" aria-hidden="true">
@@ -194,119 +191,8 @@
           <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
         </svg>
       </span>
-      Muros
-      <span class="tab__count" x-show="$store.app.wallCount > 0"
-            x-text="$store.app.wallCount"></span>
+      Mi muro
     </a>
   </nav>
-
-  <!-- Primary action, always one thumb away on phones -->
-  <button type="button" class="fab" x-show="showFab" @click="onFabClick()"
-          aria-label="Crear un muro nuevo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <line x1="12" y1="5" x2="12" y2="19"></line>
-      <line x1="5" y1="12" x2="19" y2="12"></line>
-    </svg>
-  </button>
-
-  <!-- Create wall sheet. Global so the FAB, the
-       header and the dashboard all open the same
-       dialog. -->
-  <div class="modal-overlay"
-       x-show="$store.app.createWallOpen"
-       x-cloak
-       @click.self="$store.app.closeCreateWall()"
-       @keydown.escape.window="$store.app.closeCreateWall()">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="create-wall-title"
-         x-data="createWallForm">
-      <span class="modal__handle" aria-hidden="true"></span>
-
-      <div class="modal__header">
-        <div>
-          <h2 class="modal__title" id="create-wall-title">Nuevo muro</h2>
-          <p class="modal__subtitle">Elige un título y compártelo cuando quieras.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--icon"
-                @click="$store.app.closeCreateWall()" aria-label="Cerrar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal__body">
-        <div x-html="$store.templates.createWallForm"></div>
-      </div>
-
-      <div class="modal__footer">
-        <button type="button" class="btn btn--secondary" @click="$store.app.closeCreateWall()">
-          Cancelar
-        </button>
-        <button type="button" class="btn btn--primary" @click="submit()"
-                :disabled="loading || !canSubmit" :data-busy="loading ? 'true' : 'false'">
-          <span class="spinner" x-show="loading" x-cloak aria-hidden="true"></span>
-          <span x-text="loading ? 'Creando...' : 'Crear muro'"></span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Edit wall sheet -->
-  <div class="modal-overlay"
-       x-show="$store.app.editWallOpen"
-       x-cloak
-       @click.self="$store.app.closeEditWall()"
-       @keydown.escape.window="$store.app.closeEditWall()">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-wall-title"
-         x-data="editWallForm">
-      <span class="modal__handle" aria-hidden="true"></span>
-
-      <div class="modal__header">
-        <div>
-          <h2 class="modal__title" id="edit-wall-title">Editar mi muro</h2>
-          <p class="modal__subtitle">Cambia el título, color o visibilidad.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--icon"
-                @click="$store.app.closeEditWall()" aria-label="Cerrar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal__body">
-        <div x-html="$store.templates.editWallForm"></div>
-      </div>
-
-      <div class="modal__footer">
-        <button type="button" class="btn btn--secondary" @click="$store.app.closeEditWall()">
-          Cancelar
-        </button>
-        <button type="button" class="btn btn--primary" @click="submit()"
-                :disabled="loading || !canSubmit" :data-busy="loading ? 'true' : 'false'">
-          <span class="spinner" x-show="loading" x-cloak aria-hidden="true"></span>
-          <span x-text="loading ? 'Guardando...' : 'Guardar cambios'"></span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Share wall sheet. Global so any page can open it
-       by dispatching a `wall:share` CustomEvent on window. -->
-  <div x-html="$store.templates.shareWallModal"></div>
-
-  <!-- Wall overlay: full-screen view (JPG) or edit (canvas + tools)
-       opened from the dashboard table. `data-wall-page` lets the
-       toolbar reach the canvas api through closest(). -->
-  <template x-if="$store.app.wallOverlay.open">
-    <div class="wall-overlay"
-         x-data="wallOverlay"
-         data-wall-page
-         @keydown.escape.window="handleEscape()">
-      <div x-html="wallOverlayTemplate"></div>
-    </div>
-  </template>
 
 </div>

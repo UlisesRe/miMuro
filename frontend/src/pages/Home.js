@@ -8,272 +8,26 @@ export function HomePageComponent() {
   return {
     homePageTemplate: HomePageTemplate,
 
-    // Live platform counters (filled from /api/stats)
-    stats: { walls: 0, strokes: 0, online: 0 },
+    // Live social proof (filled from /api/stats)
+    stats: { members: 0 },
 
-    // Animated preview inside the hero
-    previewFrame: null,
-    previewContext: null,
-    previewResizeHandler: null,
-    previewStatic: false,
-    previewWidth: 0,
-    previewHeight: 0,
-
-    async init() {
-      // Wait for layout so the canvas has a size
-      this.$nextTick(() => this.startPreview())
+    init() {
       this.loadStats()
-
-      // Keep counters fresh when walls are created,
-      // edited, reset or deleted anywhere in the app.
-      this._statsRefreshHandler = () => this.loadStats()
-      window.addEventListener('walls:changed', this._statsRefreshHandler)
-    },
-
-    destroy() {
-      this.stopPreview()
-      window.removeEventListener('walls:changed', this._statsRefreshHandler)
     },
 
     async loadStats() {
       try {
         const data = await api.stats.get()
-        this.stats = {
-          walls: data?.walls ?? this.stats.walls,
-          strokes: data?.strokes ?? this.stats.strokes,
-          online: data?.online ?? this.stats.online
-        }
+        this.stats = { members: data?.members ?? this.stats.members }
       } catch {
-        // Keep the previous numbers; the counters are
-        // decorative and must never break the page.
+        // The counter is decorative: never break the page.
       }
     },
 
     getStarted() {
       this.$router.navigate(this.$store.auth.isAuthenticated ? '/dashboard' : '/register')
-    },
-
-    // ------------------------------------
-    // Hero preview animation
-    // Draws fake signatures so the hero shows
-    // what the product actually looks like
-    // instead of an empty white rectangle.
-    // ------------------------------------
-
-    startPreview() {
-      const canvas = this.$refs.previewCanvas
-      if (!canvas) return
-
-      const context = canvas.getContext('2d')
-      if (!context) return
-
-      this.previewContext = context
-      this.resizePreview()
-
-      this.previewResizeHandler = () => {
-        this.resizePreview()
-        if (this.previewStatic) this.renderPreview(1)
-      }
-      window.addEventListener('resize', this.previewResizeHandler, { passive: true })
-
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-      if (reduceMotion) {
-        // Draw the finished wall once, no loop.
-        this.previewStatic = true
-        this.renderPreview(1)
-        return
-      }
-
-      this.previewFrame = requestAnimationFrame(() => this.tickPreview(0))
-    },
-
-    stopPreview() {
-      if (this.previewFrame) cancelAnimationFrame(this.previewFrame)
-      this.previewFrame = null
-      if (this.previewResizeHandler) {
-        window.removeEventListener('resize', this.previewResizeHandler)
-        this.previewResizeHandler = null
-      }
-      this.previewStatic = false
-    },
-
-    resizePreview() {
-      const canvas = this.$refs.previewCanvas
-      if (!canvas || !this.previewContext) return
-
-      const { width, height } = canvas.getBoundingClientRect()
-      if (!width || !height) return
-
-      // Cap the ratio: a 3x phone wastes memory for
-      // no visible gain on a decorative canvas.
-      const ratio = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.round(width * ratio)
-      canvas.height = Math.round(height * ratio)
-      this.previewContext.setTransform(ratio, 0, 0, ratio, 0, 0)
-      this.previewWidth = width
-      this.previewHeight = height
-    },
-
-    tickPreview(timestamp) {
-      const cycle = 7000
-      const elapsed = timestamp % cycle
-      const loopStart = cycle - 900
-
-      if (elapsed >= loopStart) {
-        // Fade the wall out, then start over.
-        const fade = (elapsed - loopStart) / 900
-        this.renderPreview(1, 1 - fade)
-        this.previewFrame = requestAnimationFrame((t) => this.tickPreview(t))
-        return
-      }
-
-      this.renderPreview(Math.min(elapsed / 5200, 1))
-      this.previewFrame = requestAnimationFrame((t) => this.tickPreview(t))
-    },
-
-    renderPreview(progress, alpha = 1) {
-      const context = this.previewContext
-      if (!context || !this.previewWidth) return
-
-      const width = this.previewWidth
-      const height = this.previewHeight
-
-      context.clearRect(0, 0, width, height)
-
-      const strokes = buildDemoStrokes(width, height)
-      const total = strokes.length
-
-      strokes.forEach((stroke, index) => {
-        // Stagger the strokes so each signature
-        // starts after the previous one settles.
-        const start = index / total
-        const span = 1 / total
-        const local = Math.min(Math.max((progress - start) / span, 0), 1)
-        if (local === 0) return
-
-        drawPartialStroke(context, stroke.points, stroke, local, alpha)
-      })
     }
   }
-}
-
-/**
- * Builds the demo signatures in pixel space.
- * Everything is derived from the canvas size so
- * the preview stays proportional on any screen.
- * Colours are drawn from the same muted set as the
- * interface so the preview does not fight the page.
- */
-function buildDemoStrokes(width, height) {
-  const unit = Math.min(width, height)
-  const cx = width / 2
-  const cy = height / 2
-
-  return [
-    {
-      color: '#334155',
-      width: Math.max(2.5, unit * 0.018),
-      points: wavePoints(width * 0.12, height * 0.32, width * 0.24, height * 0.07)
-    },
-    {
-      color: '#475569',
-      width: Math.max(2.5, unit * 0.016),
-      points: starPoints(width * 0.76, height * 0.3, unit * 0.095, unit * 0.042)
-    },
-    {
-      color: '#64748b',
-      width: Math.max(2.5, unit * 0.018),
-      points: circlePoints(width * 0.74, height * 0.68, unit * 0.13)
-    },
-    {
-      color: '#0f172a',
-      width: Math.max(2, unit * 0.012),
-      points: scribblePoints(cx, height * 0.5, width * 0.34)
-    }
-  ]
-}
-
-function starPoints(cx, cy, outer, inner) {
-  const points = []
-  for (let i = 0; i <= 10; i += 1) {
-    const radius = i % 2 === 0 ? outer : inner
-    const angle = (i / 10) * Math.PI * 2 - Math.PI / 2
-    points.push([cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius])
-  }
-  return points
-}
-
-function circlePoints(cx, cy, radius) {
-  const points = []
-  for (let i = 0; i <= 48; i += 1) {
-    const angle = (i / 48) * Math.PI * 2
-    points.push([cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius])
-  }
-  return points
-}
-
-function wavePoints(startX, y, span, amplitude) {
-  const points = []
-  const steps = 40
-  for (let i = 0; i <= steps; i += 1) {
-    const t = i / steps
-    points.push([startX + t * span, y + Math.sin(t * Math.PI * 3) * amplitude])
-  }
-  return points
-}
-
-/**
- * A signature-like squiggle. The jitter is
- * deterministic, otherwise the line would crawl
- * on every animation frame.
- */
-function scribblePoints(cx, y, span) {
-  const points = []
-  const steps = 48
-  for (let i = 0; i <= steps; i += 1) {
-    const t = i / steps
-    const jitter = Math.sin(i * 12.9898) * 0.5
-    points.push([
-      cx - span / 2 + t * span,
-      y + Math.sin(t * Math.PI * 4) * y * 0.09 + jitter * 1.5
-    ])
-  }
-  return points
-}
-
-/**
- * Draws a stroke up to `progress` of its length,
- * tapering the last segment so the line looks
- * like it is being pulled rather than stamped.
- */
-function drawPartialStroke(context, points, stroke, progress, alpha) {
-  if (points.length < 2) return
-
-  context.save()
-  context.globalAlpha = alpha
-  context.strokeStyle = stroke.color
-  context.lineWidth = stroke.width
-  context.lineCap = 'round'
-  context.lineJoin = 'round'
-
-  const total = points.length - 1
-  const upto = progress * total
-  const whole = Math.floor(upto)
-  const fraction = upto - whole
-
-  context.beginPath()
-  context.moveTo(points[0][0], points[0][1])
-  for (let i = 1; i <= whole && i < points.length; i += 1) {
-    context.lineTo(points[i][0], points[i][1])
-  }
-  if (whole < total && fraction > 0) {
-    const [x0, y0] = points[whole]
-    const [x1, y1] = points[whole + 1]
-    context.lineTo(x0 + (x1 - x0) * fraction, y0 + (y1 - y0) * fraction)
-  }
-  context.stroke()
-  context.restore()
 }
 
 export function registerHomePage(Alpine) {
@@ -302,13 +56,13 @@ export const HomePageTemplate = `
           </h1>
 
           <p class="hero__text">
-            Un lienzo digital donde tus amigos dibujan, escriben y dejan su firma.
-            Comparte un link y mira cómo se llena en tiempo real.
+            Un muro digital donde la gente que quieres deja su firma.
+            Comparte un link y mira cómo se llena con quienes te importan.
           </p>
 
           <div class="hero__actions">
             <button type="button" class="btn btn--primary btn--lg" @click="getStarted()"
-                    x-text="$store.auth.isAuthenticated ? 'Ir a mis muros' : 'Crear mi muro gratis'">
+                    x-text="$store.auth.isAuthenticated ? 'Ir a mi muro' : 'Crear mi muro gratis'">
               Crear mi muro gratis
             </button>
             <button type="button" class="btn btn--secondary btn--lg" @click="$router.navigate('/login')">
@@ -321,12 +75,19 @@ export const HomePageTemplate = `
           <div class="wall-preview">
             <div class="wall-preview__bar">
               <div class="wall-preview__dots" aria-hidden="true"><span></span><span></span><span></span></div>
-              <span class="wall-preview__title">Lienzo compartido</span>
+              <span class="wall-preview__title">Muro compartido</span>
             </div>
 
-            <canvas class="wall-preview__canvas" x-ref="previewCanvas"
-                    role="img"
-                    aria-label="Vista animada de un lienzo de miMuro con firmas dibujadas por varias personas"></canvas>
+            <div class="wall-preview__demo" role="img"
+                 aria-label="Vista de un muro de miMuro lleno de firmas de varias personas">
+              <span class="signature signature--1">Ana</span>
+              <span class="signature signature--2">¡Feliz cumple! 🎉</span>
+              <span class="signature signature--3">tomás</span>
+              <span class="signature signature--4">#bffs</span>
+              <span class="signature signature--5">te quiero ✨</span>
+              <span class="signature signature--6">Santi ★</span>
+              <span class="signature signature--7">juli &amp; co.</span>
+            </div>
           </div>
         </div>
 
@@ -334,21 +95,13 @@ export const HomePageTemplate = `
     </div>
   </section>
 
-  <!-- Social Proof - live counters -->
-  <section class="section section--muted" aria-labelledby="stats-title">
+  <!-- Social proof - live counter -->
+  <section class="section section--muted" aria-label="Comunidad">
     <div class="container">
-      <div class="stats" role="region" aria-label="Estadísticas en tiempo real">
+      <div class="stats stats--one">
         <div class="stat">
-          <span class="stat__value" x-text="stats.online"></span>
-          <span class="stat__label">Personas firmando ahora</span>
-        </div>
-        <div class="stat">
-          <span class="stat__value" x-text="stats.walls"></span>
-          <span class="stat__label">Muros creados</span>
-        </div>
-        <div class="stat">
-          <span class="stat__value" x-text="stats.strokes"></span>
-          <span class="stat__label">Firmas totales</span>
+          <span class="stat__value" x-text="stats.members"></span>
+          <span class="stat__label">personas ya tienen su muro</span>
         </div>
       </div>
     </div>
@@ -366,17 +119,17 @@ export const HomePageTemplate = `
         <li class="step">
           <span class="step__marker" aria-hidden="true"></span>
           <h3 class="step__title">Crea tu muro</h3>
-          <p class="step__text">Elige un título, un color de fondo y decide si es público o privado.</p>
+          <p class="step__text">Elegí un título y un color. En segundos tenés tu link listo para compartir.</p>
         </li>
         <li class="step">
           <span class="step__marker" aria-hidden="true"></span>
           <h3 class="step__title">Comparte el link</h3>
-          <p class="step__text">Mándalo por WhatsApp, Instagram o como quieras. No hace falta que se registren.</p>
+          <p class="step__text">Mándalo por Instagram, WhatsApp o donde quieras. No hace falta que se registren.</p>
         </li>
         <li class="step">
           <span class="step__marker" aria-hidden="true"></span>
-          <h3 class="step__title">Ellos firman</h3>
-          <p class="step__text">Dibujan con el dedo y ves cada trazo aparecer al instante, sin recargar.</p>
+          <h3 class="step__title">Tu gente firma</h3>
+          <p class="step__text">Cada persona deja su huella y tu muro se llena con la gente que te importa.</p>
         </li>
       </ol>
     </div>
@@ -398,7 +151,7 @@ export const HomePageTemplate = `
               <path d="M2 2l7.586 7.586"></path>
             </svg>
           </span>
-          <h3 class="feature__title">Dibuja con el dedo</h3>
+          <h3 class="feature__title">Firmas que quedan</h3>
         </article>
 
         <article class="feature">
@@ -414,21 +167,21 @@ export const HomePageTemplate = `
         <article class="feature">
           <span class="feature__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-              <line x1="12" y1="20" x2="12.01" y2="20"></line>
-            </svg>
-          </span>
-          <h3 class="feature__title">En tiempo real</h3>
-        </article>
-
-        <article class="feature">
-          <span class="feature__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
               <rect x="5" y="2" width="14" height="20" rx="2"></rect>
               <line x1="12" y1="18" x2="12.01" y2="18"></line>
             </svg>
           </span>
           <h3 class="feature__title">Móvil primero</h3>
+        </article>
+
+        <article class="feature">
+          <span class="feature__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </span>
+          <h3 class="feature__title">Tus reglas</h3>
         </article>
       </div>
     </div>
@@ -444,7 +197,7 @@ export const HomePageTemplate = `
         <p class="cta__text">Tarda menos de un minuto. Sin tarjeta de crédito y sin compromiso.</p>
         <div class="cta__actions">
           <button type="button" class="btn btn--lg btn--on-brand" @click="getStarted()"
-                  x-text="$store.auth.isAuthenticated ? 'Ver mis muros' : 'Empezar gratis'">
+                  x-text="$store.auth.isAuthenticated ? 'Ver mi muro' : 'Empezar gratis'">
             Empezar gratis
           </button>
           <button type="button" class="btn btn--lg btn--on-brand-outline" @click="$router.navigate('/login')">

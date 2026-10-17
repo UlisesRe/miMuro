@@ -1,21 +1,31 @@
 /* ========================================
    miMuro - Layout
-   App shell, header, mobile tab bar, FAB
-   and footer.
+   App shell, header, mobile tab bar and
+   footer.
 
    Navigation strategy:
-   - < 768px  : bottom tab bar + raised FAB
+   - < 768px  : fixed bottom tab bar
    - >= 768px : inline header nav, tab bar
-                and FAB are removed
+                is removed
    ======================================== */
 
 .app-shell {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  min-height: 0;
   /* Reserve room so the fixed tab bar never
      covers the end of the page. */
   padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom));
+}
+
+/* The x-data / x-html wrappers between <main> and
+   the page template are display:block, so they
+   break the flex chain that gives the page its
+   height. Make them transparent to flex. */
+.app-shell > div,
+.app-shell > div > div {
+  display: contents;
 }
 
 .app-shell[data-nav='false'] {
@@ -314,7 +324,7 @@
   bottom: 0;
   z-index: var(--z-tabbar);
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: repeat(2, 1fr);
   align-items: center;
   min-height: var(--tabbar-height);
   padding-bottom: var(--safe-bottom);
@@ -329,14 +339,6 @@
   .tabbar {
     display: none;
   }
-}
-
-/* Reserves the middle grid track for the floating
-   action button so the outer tabs stay symmetric. */
-.tabbar__spacer {
-  display: block;
-  width: var(--fab-size);
-  height: var(--fab-size);
 }
 
 .tab {
@@ -382,20 +384,6 @@
   height: 1.375rem;
 }
 
-.tab__count {
-  position: absolute;
-  top: 0.25rem;
-  inset-inline-start: calc(50% + 0.625rem);
-  min-width: 1.125rem;
-  padding: 0.125rem 0.3125rem;
-  font-size: 0.625rem;
-  font-weight: var(--weight-semibold);
-  line-height: 1;
-  color: var(--color-primary-contrast);
-  background: var(--gradient-brand);
-  border-radius: var(--radius-full);
-  text-align: center;
-}
 
 .tab[aria-current='page'] {
   color: var(--color-primary);
@@ -406,54 +394,6 @@
   color: var(--color-primary-contrast);
   background: var(--gradient-brand);
   box-shadow: var(--shadow-brand);
-}
-
-/* ========================================
-   Floating action button
-   The primary action of the app lives here
-   on mobile so it is always one thumb away.
-   ======================================== */
-
-.fab {
-  position: fixed;
-  left: 50%;
-  bottom: calc(var(--tabbar-height) + var(--safe-bottom) - 1.5rem);
-  z-index: var(--z-fab);
-  display: grid;
-  place-items: center;
-  width: var(--fab-size);
-  height: var(--fab-size);
-  color: var(--color-primary-contrast);
-  background: var(--gradient-brand);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-brand-lg);
-  transform: translateX(-50%);
-  text-decoration: none;
-  transition:
-    transform var(--duration-base) var(--ease-spring),
-    box-shadow var(--duration-base) var(--ease-out),
-    background-color var(--duration-base) var(--ease-in-out);
-}
-
-.fab svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.fab:hover {
-  background: var(--gradient-brand-hover);
-  box-shadow: var(--shadow-brand-lg);
-  text-decoration: none;
-}
-
-.fab:active {
-  transform: translateX(-50%) scale(0.94);
-}
-
-@media (min-width: 768px) {
-  .fab {
-    display: none;
-  }
 }
 
 /* ========================================

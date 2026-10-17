@@ -1,10 +1,9 @@
 // ========================================
-// miMuro - Main Entry Point
+// miMuro - Entry point
 // ========================================
 
-// Order matters: tokens define the variables every
-// other sheet consumes, base normalises, then
-// layout, components and finally pages.
+// Order matters: tokens first, then base, layout,
+// components and finally the page styles.
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/layout.css'
@@ -12,8 +11,10 @@ import './styles/components.css'
 import './styles/home.css'
 import './styles/auth.css'
 import './styles/app.css'
+import './styles/wall.css'
 
 import Alpine from 'alpinejs'
+
 import { initRouter } from './router.js'
 import { initAuth } from './hooks/useAuth.js'
 import { initToast } from './utils/toast.js'
@@ -23,6 +24,7 @@ import { registerHomePage } from './pages/Home.js'
 import { registerLoginPage } from './pages/Login.js'
 import { registerRegisterPage } from './pages/Register.js'
 import { registerDashboardPage } from './pages/Dashboard.js'
+import { registerWallEditorPage } from './pages/WallEditor.js'
 import { registerPublicWallPage } from './pages/PublicWall.js'
 import { registerLegalPage } from './pages/Legal.js'
 
@@ -32,110 +34,26 @@ window.Alpine = Alpine
 // failure during boot.
 initToast(Alpine)
 
-// Global app state.
-// `showToast` delegates to the toast store instead of
-// keeping a second, never-rendered copy of the message.
+// Global app state. `showToast` delegates to the toast
+// store instead of keeping a second, never-rendered copy
+// of the message.
 Alpine.store('app', {
   user: null,
   isAuthenticated: false,
   currentPage: 'HomePage',
 
-  // How many walls the signed-in user owns. Kept in the
-  // shell store so the header badge and tabbar stay in
-  // sync no matter which page is mounted.
-  wallCount: 0,
-
-  // The create-wall sheet lives in the shell so the
-  // FAB, the header and the dashboard share it.
-  createWallOpen: false,
-  editWallOpen: false,
-  editWallData: null,
-
-  // A page that owns the whole viewport (the public
-  // wall) hides the app header/footer/nav.
-  immersive: false,
-
-  // Full-screen wall overlay opened from the dashboard:
-  // mode "view" shows the JPG, mode "edit" the canvas.
-  wallOverlay: { open: false, mode: null, wallId: null },
-
   setUser(user) {
     this.user = user
     this.isAuthenticated = !!user
-    if (user) {
-      this.refreshWallCount()
-    } else {
-      this.wallCount = 0
-    }
-  },
-
-  async refreshWallCount() {
-    if (!this.isAuthenticated) {
-      this.wallCount = 0
-      return
-    }
-    try {
-      const data = await api.walls.list()
-      const walls = data.walls || data || []
-      this.wallCount = walls.length
-    } catch {
-      // Keep the last known count; the next successful
-      // load will correct it.
-    }
   },
 
   logout() {
     this.user = null
     this.isAuthenticated = false
-    this.wallCount = 0
-    this.createWallOpen = false
-    this.editWallOpen = false
-    this.editWallData = null
-    this.wallOverlay = { open: false, mode: null, wallId: null }
-    this.immersive = false
     localStorage.removeItem('auth_token')
     localStorage.removeItem('refresh_token')
     sessionStorage.removeItem('auth_token')
     sessionStorage.removeItem('refresh_token')
-  },
-
-  openCreateWall() {
-    if (!this.isAuthenticated) {
-      Alpine.store('router').navigate('/register')
-      return
-    }
-    this.createWallOpen = true
-  },
-
-  closeCreateWall() {
-    this.createWallOpen = false
-  },
-
-  openEditWall(wall) {
-    if (!this.isAuthenticated) return
-    this.editWallData = wall
-    this.editWallOpen = true
-  },
-
-  closeEditWall() {
-    this.editWallOpen = false
-    this.editWallData = null
-  },
-
-  openWallOverlay(mode, wallId) {
-    if (!this.isAuthenticated) {
-      Alpine.store('router').navigate('/login')
-      return
-    }
-    this.wallOverlay = {
-      open: true,
-      mode: mode === 'edit' ? 'edit' : 'view',
-      wallId
-    }
-  },
-
-  closeWallOverlay() {
-    this.wallOverlay = { open: false, mode: null, wallId: null }
   },
 
   showToast(message, type = 'info', duration) {
@@ -149,40 +67,53 @@ const router = initRouter(Alpine)
 // the $router magic, so store methods can navigate.
 Alpine.store('router', router)
 
+// Session restore runs in the background: the shell and the
+// pages render right away and the auth guards await
+// `whenAuthReady()`, so a slow /me call never blocks the boot.
 initAuth(Alpine, api)
 registerAllComponents(Alpine)
 
-// Pages are registered directly rather than through
-// pages/index.js so there is a single registration
-// point and no chance of double-registering.
+// Pages are registered directly so there is a single
+// registration point and no chance of double-registering.
 registerHomePage(Alpine)
 registerLoginPage(Alpine)
 registerRegisterPage(Alpine)
 registerDashboardPage(Alpine)
+registerWallEditorPage(Alpine)
 registerPublicWallPage(Alpine)
 registerLegalPage(Alpine)
 
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason)
-  const reason = event.reason
-  // Network failures are already surfaced by the API
-  // layer; don't stack a second toast on top.
-  if (reason?.message === 'Error de conexión') return
+  // Network failures are already surfaced by the API layer:
+  // don't stack a second toast on top.
+  if (event.reason?.message === 'Error de conexión') return
   Alpine.store('toast').error('Ha ocurrido un error inesperado')
 })
 
+// Boot Alpine. Required: the npm build of Alpine does NOT
+// auto-start (only the CDN build does), so without this the
+// DOM never renders and the page stays blank.
 Alpine.start()
 
-// Keep the wall-count badge in the header and tabbar
-// accurate no matter where a wall is created/destroyed.
-// Only refresh a running session to avoid pointless calls.
-window.addEventListener('walls:changed', () => {
-  if (Alpine.store('app').isAuthenticated) {
-    Alpine.store('app').refreshWallCount()
+// Offline support is a production-only extra. In dev a
+// service worker would serve cached modules, so the app
+// would keep running the previous bundle and never pick
+// up changes. Here we register it only in production and,
+// in dev, remove any leftover worker plus its caches.
+if ('serviceWorker' in navigator) {
+  if (import.meta.env.PROD) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Offline support is a bonus: never block on it.
+    })
+  } else {
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+      .then(() => ('caches' in window ? caches.keys() : []))
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .catch(() => {
+        // A stale worker must never keep the dev app from booting.
+      })
   }
-})
-
-// Expose for debugging
-window.router = router
-
-console.log('miMuro inicializado')
+}

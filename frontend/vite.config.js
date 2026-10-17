@@ -6,6 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    target: 'es2022',
     rollupOptions: {
       input: {
         main: 'index.html'
@@ -18,16 +19,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true
-      },
-      '/ws': {
-        target: 'ws://localhost:8000',
-        ws: true
       }
-    }
-  },
-  css: {
-    modules: {
-      localsConvention: 'camelCase'
     }
   }
 })

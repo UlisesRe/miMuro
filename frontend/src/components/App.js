@@ -1,6 +1,6 @@
 // ========================================
 // miMuro - App Shell (header, navigation,
-// routing outlet and global overlays)
+// routing outlet and footer)
 // ========================================
 
 import AppTemplate from './AppTemplate.html?raw'
@@ -8,11 +8,6 @@ import AppTemplate from './AppTemplate.html?raw'
 // Pages that own the whole viewport and should
 // not carry the app navigation.
 const AUTH_PAGES = ['LoginPage', 'RegisterPage']
-
-// The dashboard has its own "Nuevo muro" button and
-// the wall pages need the canvas, so the FAB only
-// shows on the landing page.
-const FAB_PAGES = ['HomePage']
 
 export function AppComponent() {
   return {
@@ -39,35 +34,20 @@ export function AppComponent() {
     },
 
     handleRouteChange() {
-      const authed = this.$store.auth.isAuthenticated
-
-      // Someone who is already signed in has no
-      // business on the login or register screens.
-      if (authed && AUTH_PAGES.includes(this.currentPage)) {
-        this.$router.replace('/dashboard')
-        return
-      }
-
-      // A new page starts at the top. 'instant'
-      // avoids the smooth-scroll animation fighting
-      // the route change.
-      window.scrollTo({ top: 0, behavior: 'instant' })
+      // Focus the routed content so screen readers and
+      // the keyboard land in the right place.
+      this.$nextTick(() => {
+        const main = document.getElementById('main-content')
+        if (main) main.focus({ preventScroll: true })
+      })
     },
-
-    // ------------------------------------
-    // Navigation state
-    // ------------------------------------
 
     get isAuthPage() {
       return AUTH_PAGES.includes(this.currentPage)
     },
 
     get showAppNav() {
-      return !this.isAuthPage && this.currentPage !== 'NotFoundPage'
-    },
-
-    get showFab() {
-      return FAB_PAGES.includes(this.currentPage)
+      return !this.isAuthPage
     },
 
     get showFooter() {
@@ -83,20 +63,7 @@ export function AppComponent() {
     },
 
     isActive(page) {
-      if (page === 'HomePage') return this.currentPage === 'HomePage'
       return this.currentPage === page
-    },
-
-    // ------------------------------------
-    // Actions
-    // ------------------------------------
-
-    onFabClick() {
-      if (!this.$store.auth.isAuthenticated) {
-        this.$router.navigate('/register')
-        return
-      }
-      this.$store.app.openCreateWall()
     },
 
     logout() {

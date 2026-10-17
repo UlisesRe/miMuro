@@ -7,23 +7,20 @@ const routes = {
   '/login': 'LoginPage',
   '/register': 'RegisterPage',
   '/dashboard': 'DashboardPage',
+  '/dashboard/w/:id': 'WallEditorPage',
   '/w/:slug': 'PublicWallPage',
   '/privacy': 'LegalPage',
   '/terms': 'LegalPage',
   '/contact': 'LegalPage'
 }
 
-const routeParams = new Map()
-
 export function initRouter(Alpine) {
   let currentRoute = null
-  let currentComponent = null
 
   function parsePath(path) {
     const [pathname, search] = path.split('?')
     const params = {}
     let matchedRoute = null
-    let matchedPattern = null
 
     for (const [pattern, component] of Object.entries(routes)) {
       const regexPattern = pattern
@@ -33,7 +30,6 @@ export function initRouter(Alpine) {
       const match = pathname.match(regex)
       if (match) {
         matchedRoute = component
-        matchedPattern = pattern
         const paramNames = pattern.match(/:([^/]+)/g) || []
         paramNames.forEach((name, index) => {
           params[name.slice(1)] = match[index + 1]
@@ -51,13 +47,11 @@ export function initRouter(Alpine) {
   }
 
   function navigate(path) {
-    console.log('[Router] navigate to:', path)
     window.history.pushState({}, '', path)
     handleRouteChange(path)
   }
 
   function replace(path) {
-    console.log('[Router] replace to:', path)
     window.history.replaceState({}, '', path)
     handleRouteChange(path)
   }
@@ -89,7 +83,7 @@ export function initRouter(Alpine) {
     replace,
     getCurrentRoute: () => currentRoute,
     getParams: () => currentRoute?.params || {},
-    getQuery: () => currentRoute?.query || {}
+    getQuery: () => currentRoute?.query || new URLSearchParams()
   }
 
   // Alpine magic for router

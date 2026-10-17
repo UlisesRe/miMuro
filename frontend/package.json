@@ -6,15 +6,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:e2e": "playwright test"
+    "test": "vitest"
   },
   "dependencies": {
     "alpinejs": "^3.13.3"
   },
   "devDependencies": {
+    "jsdom": "^30.1.2",
     "vite": "^5.0.0",
-    "vitest": "^1.0.0",
-    "@playwright/test": "^1.40.0"
+    "vitest": "^1.0.0"
   }
 }

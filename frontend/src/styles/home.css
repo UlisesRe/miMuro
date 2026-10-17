@@ -256,7 +256,7 @@
   }
 }
 
-/* Layered paper sheets behind the canvas */
+/* Layered paper sheets behind the preview */
 .hero__preview::before,
 .hero__preview::after {
   content: '';
@@ -321,12 +321,44 @@
   white-space: nowrap;
 }
 
-.wall-preview__canvas {
-  display: block;
-  width: 100%;
-  height: auto;
+.wall-preview__demo {
+  position: relative;
   aspect-ratio: 4 / 3;
+  overflow: hidden;
   background-color: var(--color-surface);
+  background-image:
+    linear-gradient(to right, var(--grid-color) 1.5px, transparent 1.5px),
+    linear-gradient(to bottom, var(--grid-color) 1.5px, transparent 1.5px);
+  background-size: calc(100% / 12) calc(100% / 12);
+}
+
+/* Handwritten names scattered over the "wall". Pure CSS:
+   no canvas, no drawing engine, just the product idea. */
+.signature {
+  position: absolute;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-text);
+  animation: signature-float 4s ease-in-out infinite;
+}
+
+.signature--1 { top: 12%; left: 8%; font-size: 2rem; color: var(--color-primary); rotate: -6deg; }
+.signature--2 { top: 19%; right: 9%; font-size: 1.5rem; rotate: 4deg; animation-delay: 0.4s; }
+.signature--3 { top: 44%; left: 13%; font-size: 1.7rem; rotate: 3deg; animation-delay: 0.8s; }
+.signature--4 { top: 40%; right: 15%; font-size: 1.4rem; rotate: -5deg; animation-delay: 1.2s; }
+.signature--5 { bottom: 15%; left: 9%; font-size: 1.6rem; rotate: -3deg; animation-delay: 1.6s; }
+.signature--6 { bottom: 25%; right: 11%; font-size: 1.7rem; color: var(--color-primary); rotate: 6deg; animation-delay: 2s; }
+.signature--7 { bottom: 7%; left: 41%; font-size: 1.4rem; rotate: -2deg; animation-delay: 2.4s; }
+
+@keyframes signature-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signature { animation: none; }
 }
 
 /* ========================================
@@ -345,6 +377,10 @@
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-xl);
   }
+}
+
+.stats--one {
+  grid-template-columns: 1fr;
 }
 
 .stat {

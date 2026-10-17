@@ -1,131 +1,125 @@
 // ========================================
-// miMuro - Dashboard Page
-// "Mis muros" as a table (stacked rows on
-// mobile). Nothing is opened automatically:
-// every wall is reached through its row.
+// miMuro - Dashboard Page ("Mis muros")
+//
+// Lista los muros del usuario y permite crear uno nuevo
+// eligiendo nombre, color del lienzo y visibilidad.
 // ========================================
 
 import { api } from '../services/api.js'
 import { whenAuthReady } from '../hooks/useAuth.js'
 
+const ICONS = {
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+  brush: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.06 11.9 3.6 6.44A2 2 0 0 1 6.44 3.6l5.46 5.46"></path><path d="m14.5 9.5 5 5a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 1-2.83 0l-5-5"></path><path d="m9 15-3 3-3 3 4-1 3-3"></path></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+}
+
+const PALETTE = [
+  '#ffffff',
+  '#fff3bf',
+  '#ffd8a8',
+  '#ffe3e3',
+  '#d3f9d8',
+  '#d0ebff',
+  '#e5dbff',
+  '#16181d'
+]
+
 export function DashboardPageComponent() {
   return {
-    walls: [],
-    loading: true,
-    error: null,
-    busyId: null,
     dashboardPageTemplate: DashboardPageTemplate,
+
+    loading: true,
+    loadError: null,
+    walls: [],
+
+    showCreate: false,
+    creating: false,
+    formError: null,
+    palette: PALETTE,
+    form: { title: '', background_color: '#ffffff', is_public: true },
 
     async init() {
       await whenAuthReady()
 
       if (!this.$store.auth.isAuthenticated) {
-        this.$store.toast.info('Entra a tu cuenta para ver tus muros')
+        this.$store.toast.info('Entrá a tu cuenta para ver tus muros')
         this.$router.navigate('/login')
         return
       }
 
-      // The edit overlay and owner actions report changes
-      // through a single event; refresh quietly in place.
-      this._wallsChangedHandler = () => this.refreshWalls()
-      window.addEventListener('walls:changed', this._wallsChangedHandler)
-
       await this.loadWalls()
     },
 
-    destroy() {
-      window.removeEventListener('walls:changed', this._wallsChangedHandler)
+    get firstName() {
+      return (this.$store.auth.user?.name || '').trim().split(/\s+/)[0] || ''
     },
 
     async loadWalls() {
       this.loading = true
-      this.error = null
-
+      this.loadError = null
       try {
         const data = await api.walls.list()
-        this.walls = data.walls || data || []
-        this.$store.app.wallCount = this.walls.length
+        this.walls = data.walls || []
       } catch (error) {
-        this.error =
-          error?.message === 'Error de conexión'
-            ? 'No pudimos conectar con el servidor. Revisa tu conexión.'
-            : 'No pudimos cargar tus muros'
+        this.loadError = error?.message || 'No pudimos cargar tus muros'
       } finally {
         this.loading = false
       }
     },
 
-    async refreshWalls() {
-      try {
-        const data = await api.walls.list()
-        this.walls = data.walls || data || []
-        this.$store.app.wallCount = this.walls.length
-      } catch {
-        // Keep the rows we already have; the next action
-        // will surface any real problem.
+    strokeLabel(wall) {
+      const total = wall.strokes_count || 0
+      if (total === 0) return 'Lienzo en blanco'
+      return total === 1 ? '1 trazo' : `${total} trazos`
+    },
+
+    openCreate() {
+      this.form = { title: '', background_color: '#ffffff', is_public: true }
+      this.formError = null
+      this.showCreate = true
+      this.$nextTick(() => this.$refs.createTitle?.focus())
+    },
+
+    closeCreate() {
+      if (this.creating) return
+      this.showCreate = false
+    },
+
+    async createWall() {
+      if (this.creating) return
+
+      const title = this.form.title.trim()
+      if (!title) {
+        this.formError = 'Poné un nombre para tu muro'
+        return
       }
-    },
 
-    formatDate(dateString) {
-      if (!dateString) return ''
-      return new Date(dateString).toLocaleDateString('es-ES', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      })
-    },
-
-    strokesLabel(wall) {
-      const count = wall.strokes_count ?? 0
-      return `${count} ${count === 1 ? 'trazo' : 'trazos'}`
-    },
-
-    openView(wall) {
-      this.$store.app.openWallOverlay('view', wall.id)
-    },
-
-    openEdit(wall) {
-      this.$store.app.openWallOverlay('edit', wall.id)
-    },
-
-    async handleDeleteWall(wall) {
-      if (this.busyId) return
-      if (!confirm(`¿Eliminar el muro "${wall.title}" permanentemente? Se borrarán todos los trazos y no se puede deshacer.`)) return
-
-      this.busyId = wall.id
+      this.creating = true
+      this.formError = null
       try {
-        await api.walls.delete(wall.id)
-        this.walls = this.walls.filter((w) => w.id !== wall.id)
-        this.$store.app.wallCount = this.walls.length
-        this.$store.toast.success('Muro eliminado')
-      } catch {
-        this.$store.toast.error('No se pudo eliminar el muro')
+        const wall = await api.walls.create({
+          title,
+          background_color: this.form.background_color,
+          is_public: this.form.is_public
+        })
+        this.walls = [wall, ...this.walls]
+        this.showCreate = false
+        this.$store.toast.success('Muro creado')
+        this.$router.navigate(`/dashboard/w/${wall.id}`)
+      } catch (error) {
+        this.formError =
+          error?.message && error.message !== 'Error de conexión'
+            ? error.message
+            : 'No pudimos crear el muro. Inténtalo de nuevo.'
       } finally {
-        this.busyId = null
+        this.creating = false
       }
     },
 
-    async handleResetWall(wall) {
-      if (this.busyId) return
-      if (!confirm(`¿Reiniciar el muro "${wall.title}"? Se borrarán todos los trazos.`)) return
-
-      this.busyId = wall.id
-      try {
-        await api.walls.reset(wall.id)
-        this.walls = this.walls.map((w) =>
-          w.id === wall.id ? { ...w, strokes_count: 0 } : w
-        )
-        this.$store.toast.success('Muro reiniciado')
-      } catch {
-        this.$store.toast.error('No se pudo reiniciar el muro')
-      } finally {
-        this.busyId = null
-      }
-    },
-
-    shareWall(wall) {
-      // The share sheet lives in the shell and listens for this event.
-      window.dispatchEvent(new CustomEvent('wall:share', { detail: wall }))
+    openWall(wall) {
+      this.$router.navigate(`/dashboard/w/${wall.id}`)
     }
   }
 }
@@ -142,246 +136,130 @@ export const DashboardPageTemplate = `
       <div>
         <h1 class="page-header__title">Mis muros</h1>
         <p class="page-header__subtitle">
-          Gestiona tus lienzos y comparte el que quieras.
+          <span x-show="firstName" x-cloak>Hola, <span x-text="firstName"></span>. </span>Cada muro es un lienzo para llenar de firmas.
         </p>
       </div>
-
-      <button type="button" class="btn btn--primary" @click="$store.app.openCreateWall()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
+      <button type="button" class="btn btn--primary" @click="openCreate()">
+        ${ICONS.plus}
         Nuevo muro
       </button>
     </header>
 
-    <template x-if="loading">
-      <div class="walls-table-wrap" aria-busy="true" aria-label="Cargando tus muros">
-        <template x-for="i in 3" :key="i">
-          <div class="skeleton" style="height:3.5rem;width:100%;margin-bottom:var(--space-sm)"></div>
-        </template>
-      </div>
-    </template>
+    <div class="state" x-show="loading" x-cloak>
+      <span class="spinner spinner--lg" aria-hidden="true"></span>
+      <p class="state__text">Cargando tus muros...</p>
+    </div>
 
-    <template x-if="!loading && error">
-      <div class="state state--error" role="alert">
-        <span class="state__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-        </span>
-        <h2 class="state__title">No se pudieron cargar tus muros</h2>
-        <p class="state__text" x-text="error"></p>
-        <button type="button" class="btn btn--primary" @click="loadWalls()">Reintentar</button>
-      </div>
-    </template>
+    <div class="state state--error" x-show="!loading && loadError" x-cloak>
+      <span class="state__icon" aria-hidden="true">${ICONS.alert}</span>
+      <h2 class="state__title">No pudimos cargar tus muros</h2>
+      <p class="state__text" x-text="loadError"></p>
+      <button type="button" class="btn btn--primary" @click="loadWalls()">Reintentar</button>
+    </div>
 
-    <template x-if="!loading && !error && walls.length === 0">
-      <div class="state">
-        <span class="state__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
-               stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-            <path d="M9 12l2 2 4-4"></path>
-          </svg>
-        </span>
-        <h2 class="state__title">Todavía no tienes muros</h2>
-        <p class="state__text">
-          Crea el primero, comparte el link y empieza a recibir firmas.
-        </p>
-        <button type="button" class="btn btn--primary btn--lg" @click="$store.app.openCreateWall()">
-          Crear mi primer muro
-        </button>
-      </div>
-    </template>
+    <div class="state" x-show="!loading && !loadError && walls.length === 0" x-cloak>
+      <span class="state__icon" aria-hidden="true">${ICONS.brush}</span>
+      <h2 class="state__title">Todavía no tenés muros</h2>
+      <p class="state__text">
+        Creá tu primer lienzo, elegí su color y empezá a llenarlo de firmas.
+      </p>
+      <button type="button" class="btn btn--primary btn--lg" @click="openCreate()">
+        ${ICONS.plus}
+        Crear mi primer muro
+      </button>
+    </div>
 
-    <template x-if="!loading && !error && walls.length > 0">
-      <div class="walls-table-wrap">
-        <table class="walls-table">
-          <thead>
-            <tr>
-              <th scope="col">Muro</th>
-              <th scope="col" class="walls-table__cell">Ver</th>
-              <th scope="col" class="walls-table__cell">Editar</th>
-              <th scope="col" class="walls-table__cell">Eliminar</th>
-              <th scope="col" class="walls-table__cell">Reiniciar</th>
-              <th scope="col" class="walls-table__cell">Compartir</th>
-              <th scope="col" class="walls-table__actions">
-                <span class="sr-only">Acciones</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="wall in walls" :key="wall.id">
-              <tr class="walls-table__row">
-                <td class="walls-table__name">
-                  <span class="walls-table__title" x-text="wall.title"></span>
-                  <span class="walls-table__meta">
-                    <span class="badge"
-                          :class="wall.is_public ? 'badge--success' : 'badge--neutral'"
-                          x-text="wall.is_public ? 'Público' : 'Privado'"></span>
-                    <span x-text="formatDate(wall.created_at)"></span>
-                    <span aria-hidden="true">·</span>
-                    <span x-text="strokesLabel(wall)"></span>
-                  </span>
-                </td>
+    <ul class="wall-grid" x-show="!loading && !loadError && walls.length > 0" x-cloak>
+      <template x-for="wall in walls" :key="wall.id">
+        <li>
+          <a class="wall-card" :href="'/dashboard/w/' + wall.id" @click.prevent="openWall(wall)">
+            <span class="wall-card__thumb" :style="'background-color:' + wall.background_color">
+              <span class="wall-card__grid" aria-hidden="true"></span>
+              <span class="badge wall-card__badge"
+                    :class="wall.is_public ? 'badge--success' : 'badge--neutral'"
+                    x-text="wall.is_public ? 'Público' : 'Privado'"></span>
+            </span>
+            <span class="wall-card__body">
+              <span class="wall-card__title" x-text="wall.title"></span>
+              <span class="wall-card__meta" x-text="strokeLabel(wall)"></span>
+            </span>
+          </a>
+        </li>
+      </template>
+    </ul>
 
-                <td class="walls-table__cell">
-                  <button type="button" class="btn btn--ghost btn--sm"
-                          @click="openView(wall)"
-                          title="Ver el muro"
-                          :aria-label="'Ver el muro ' + wall.title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                    <span class="walls-table__label">Ver</span>
-                  </button>
-                </td>
+  </div>
 
-                <td class="walls-table__cell">
-                  <button type="button" class="btn btn--ghost btn--sm"
-                          @click="openEdit(wall)"
-                          title="Editar el muro"
-                          :aria-label="'Editar el muro ' + wall.title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    <span class="walls-table__label">Editar</span>
-                  </button>
-                </td>
+  <div class="modal" x-show="showCreate" x-cloak @keydown.escape.window="closeCreate()">
+    <div class="modal__backdrop" @click="closeCreate()"></div>
 
-                <td class="walls-table__cell">
-                  <button type="button" class="btn btn--danger btn--sm"
-                          @click="handleDeleteWall(wall)"
-                          :disabled="busyId === wall.id"
-                          title="Eliminar el muro"
-                          :aria-label="'Eliminar el muro ' + wall.title">
-                    <span class="spinner spinner--sm" x-show="busyId === wall.id" x-cloak aria-hidden="true"></span>
-                    <svg x-show="busyId !== wall.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                    <span class="walls-table__label">Eliminar</span>
-                  </button>
-                </td>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="create-wall-title">
+      <form @submit.prevent="createWall()">
+        <header class="modal__header">
+          <h2 class="modal__title" id="create-wall-title" tabindex="-1" x-ref="createTitle">Nuevo muro</h2>
+          <button type="button" class="btn btn--icon btn--ghost" @click="closeCreate()" aria-label="Cerrar">
+            ${ICONS.close}
+          </button>
+        </header>
 
-                <td class="walls-table__cell">
-                  <button type="button" class="btn btn--ghost btn--sm"
-                          @click="handleResetWall(wall)"
-                          :disabled="busyId === wall.id"
-                          title="Borrar todos los trazos"
-                          :aria-label="'Reiniciar el muro ' + wall.title">
-                    <span class="spinner spinner--sm" x-show="busyId === wall.id" x-cloak aria-hidden="true"></span>
-                    <svg x-show="busyId !== wall.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                      <path d="M3 3v5h5"></path>
-                    </svg>
-                    <span class="walls-table__label">Reiniciar</span>
-                  </button>
-                </td>
+        <div class="modal__body">
+          <div class="field">
+            <label class="field__label" for="wall-title">Nombre del muro</label>
+            <input id="wall-title" class="field__input" type="text" maxlength="100"
+                   placeholder="Mi muro de cumpleaños"
+                   x-model="form.title"
+                   :aria-invalid="formError ? 'true' : 'false'">
+            <p class="field__error" x-show="formError" x-cloak role="alert">
+              ${ICONS.alert}<span x-text="formError"></span>
+            </p>
+          </div>
 
-                <td class="walls-table__cell">
-                  <button type="button" class="btn btn--ghost btn--sm"
-                          @click="shareWall(wall)"
-                          title="Compartir link del muro"
-                          :aria-label="'Compartir el muro ' + wall.title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="18" cy="5" r="3"></circle>
-                      <circle cx="6" cy="12" r="3"></circle>
-                      <circle cx="18" cy="19" r="3"></circle>
-                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                    </svg>
-                    <span class="walls-table__label">Compartir</span>
-                  </button>
-                </td>
+          <div class="field">
+            <span class="field__label">Color del lienzo</span>
+            <div class="swatches">
+              <template x-for="color in palette" :key="color">
+                <button type="button" class="swatch"
+                        :class="{ 'swatch--active': form.background_color === color }"
+                        :style="'background-color:' + color"
+                        :aria-pressed="form.background_color === color ? 'true' : 'false'"
+                        :aria-label="'Color ' + color"
+                        @click="form.background_color = color">
+                </button>
+              </template>
+            </div>
+          </div>
 
-                <td class="walls-table__actions">
-                  <div class="walls-menu" x-data="{ open: false }"
-                       @keydown.escape.window="open = false">
-                    <button type="button" class="btn btn--ghost btn--icon"
-                            @click="open = !open"
-                            :aria-expanded="open ? 'true' : 'false'"
-                            aria-haspopup="menu"
-                            :aria-label="'Acciones del muro ' + wall.title">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="5" r="1"></circle>
-                        <circle cx="12" cy="12" r="1"></circle>
-                        <circle cx="12" cy="19" r="1"></circle>
-                      </svg>
-                    </button>
+          <div class="field">
+            <span class="field__label">Visibilidad</span>
+            <div class="choices">
+              <button type="button" class="choice"
+                      :class="{ 'choice--active': form.is_public }"
+                      :aria-pressed="form.is_public ? 'true' : 'false'"
+                      @click="form.is_public = true">
+                <strong>Público</strong>
+                <span>Quien tenga el link puede verlo.</span>
+              </button>
+              <button type="button" class="choice"
+                      :class="{ 'choice--active': !form.is_public }"
+                      :aria-pressed="!form.is_public ? 'true' : 'false'"
+                      @click="form.is_public = false">
+                <strong>Privado</strong>
+                <span>Solo vos podés verlo.</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
-                    <div class="walls-menu__panel" x-show="open" x-cloak
-                         @click.outside="open = false"
-                         x-transition.origin.top.right
-                         role="menu"
-                         :aria-label="'Acciones del muro ' + wall.title">
-                      <button type="button" class="walls-menu__item" role="menuitem"
-                              @click="open = false; openView(wall)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Ver
-                      </button>
-
-                      <button type="button" class="walls-menu__item" role="menuitem"
-                              @click="open = false; openEdit(wall)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                          <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                        Editar
-                      </button>
-
-                      <button type="button" class="walls-menu__item" role="menuitem"
-                              @click="open = false; shareWall(wall)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <circle cx="18" cy="5" r="3"></circle>
-                          <circle cx="6" cy="12" r="3"></circle>
-                          <circle cx="18" cy="19" r="3"></circle>
-                          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                        </svg>
-                        Compartir
-                      </button>
-
-                      <button type="button" class="walls-menu__item" role="menuitem"
-                              @click="open = false; handleResetWall(wall)"
-                              :disabled="busyId === wall.id">
-                        <span class="spinner spinner--sm" x-show="busyId === wall.id" x-cloak aria-hidden="true"></span>
-                        <svg x-show="busyId !== wall.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                          <path d="M3 3v5h5"></path>
-                        </svg>
-                        Reiniciar
-                      </button>
-
-                      <button type="button" class="walls-menu__item walls-menu__item--danger" role="menuitem"
-                              @click="open = false; handleDeleteWall(wall)"
-                              :disabled="busyId === wall.id">
-                        <span class="spinner spinner--sm" x-show="busyId === wall.id" x-cloak aria-hidden="true"></span>
-                        <svg x-show="busyId !== wall.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <polyline points="3 6 5 6 21 6"></polyline>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-    </template>
+        <footer class="modal__footer">
+          <button type="button" class="btn btn--ghost" @click="closeCreate()">Cancelar</button>
+          <button type="submit" class="btn btn--primary"
+                  :disabled="creating" :data-busy="creating ? 'true' : 'false'">
+            <span class="spinner" x-show="creating" x-cloak aria-hidden="true"></span>
+            <span x-text="creating ? 'Creando...' : 'Crear muro'"></span>
+          </button>
+        </footer>
+      </form>
+    </div>
   </div>
 </div>
 `

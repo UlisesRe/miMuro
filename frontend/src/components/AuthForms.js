@@ -8,8 +8,6 @@
 // so screen reader users hear what went wrong.
 // ========================================
 
-import { api } from '../services/api.js'
-
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 // Matches what the backend already accepts. The
@@ -406,127 +404,9 @@ export function RegisterFormComponent() {
   }
 }
 
-export function CreateWallFormComponent() {
-  return {
-    title: '',
-    isPublic: true,
-    backgroundColor: '#ffffff',
-    loading: false,
-    error: null,
-
-    get titleLength() {
-      return this.title.trim().length
-    },
-
-    get canSubmit() {
-      return this.titleLength >= 3 && !this.loading
-    },
-
-    async submit() {
-      if (this.loading) return
-
-      this.error = null
-
-      if (!this.title.trim()) {
-        this.error = 'Ponle un título a tu muro'
-        return
-      }
-
-      this.loading = true
-
-      try {
-        const wall = await api.walls.create({
-          title: this.title.trim(),
-          is_public: this.isPublic,
-          background_color: this.backgroundColor
-        })
-        this.$store.app.closeCreateWall()
-        this.$store.app.wallCount += 1
-        window.dispatchEvent(new CustomEvent('walls:changed'))
-        this.$store.toast.success('¡Tu muro está listo!')
-        // Stay on the current page (mis muros): the wall is
-        // opened later from its "Editar" action or its link.
-      } catch (error) {
-        this.error = error?.message || 'No pudimos crear el muro'
-      } finally {
-        this.loading = false
-      }
-    },
-
-    close() {
-      this.$store.app.closeCreateWall()
-    }
-  }
-}
-
-export function EditWallFormComponent() {
-  return {
-    wall: null,
-    title: '',
-    isPublic: true,
-    backgroundColor: '#ffffff',
-    loading: false,
-    error: null,
-
-    init() {
-      // Wall data is passed via $store.app.editWallData
-      const data = this.$store.app.editWallData
-      if (data) {
-        this.wall = data
-        this.title = data.title
-        this.isPublic = data.is_public
-        this.backgroundColor = data.background_color || '#ffffff'
-      }
-    },
-
-    get titleLength() {
-      return this.title.trim().length
-    },
-
-    get canSubmit() {
-      return this.titleLength >= 3 && !this.loading && this.wall
-    },
-
-    async submit() {
-      if (this.loading || !this.wall) return
-
-      this.error = null
-
-      if (!this.title.trim()) {
-        this.error = 'Ponle un título a tu muro'
-        return
-      }
-
-      this.loading = true
-
-      try {
-        await api.walls.update(this.wall.id, {
-          title: this.title.trim(),
-          is_public: this.isPublic,
-          background_color: this.backgroundColor
-        })
-        this.$store.app.closeEditWall()
-        this.$store.toast.success('Muro actualizado')
-        // Reload the wall view to reflect changes
-        window.dispatchEvent(new CustomEvent('wall:updated', { detail: { wallId: this.wall.id } }))
-      } catch (error) {
-        this.error = error?.message || 'No pudimos actualizar el muro'
-      } finally {
-        this.loading = false
-      }
-    },
-
-    close() {
-      this.$store.app.closeEditWall()
-    }
-  }
-}
-
 export function registerAuthComponents(Alpine) {
   Alpine.data('loginForm', LoginFormComponent)
   Alpine.data('registerForm', RegisterFormComponent)
-  Alpine.data('createWallForm', CreateWallFormComponent)
-  Alpine.data('editWallForm', EditWallFormComponent)
 }
 
 // Shared inline icons
@@ -916,20 +796,14 @@ export const RegisterFormTemplate = `
 </div>
 `
 
-// ========================================
-// Brand panel - shown next to the form on
-// tablets and up. Every claim here maps to
-// something the app actually does.
-// ========================================
-
 export const AuthBrandPanelTemplate = `
   <h2 class="auth__brand-title">
-    Un lienzo que se llena de <span class="accent-mark">firmas</span>
+    Un muro que se llena de <span class="accent-mark">firmas</span>
   </h2>
 
   <p class="auth__brand-text">
-    Abre tu muro, comparte el link y mira cómo tus amigos lo dibujan en tiempo real,
-    desde el móvil que tengan a mano.
+    Abre tu muro, comparte el link y deja que la gente que quieres
+    deje su huella, desde el móvil que tengan a mano.
   </p>
 
   <ul class="auth__points">
@@ -939,149 +813,14 @@ export const AuthBrandPanelTemplate = `
     </li>
     <li class="auth__point">
       <span class="auth__point-icon" aria-hidden="true">${ICONS.check}</span>
-      <span>Tus invitados firman sin necesidad de registrarse.</span>
+      <span>Tus invitados participan sin necesidad de registrarse.</span>
     </li>
     <li class="auth__point">
       <span class="auth__point-icon" aria-hidden="true">${ICONS.check}</span>
-      <span>Solo tú borras trazos o reseteas el lienzo completo.</span>
+      <span>Solo tú decides quién entra y qué queda en tu muro.</span>
     </li>
   </ul>
 
-  <p class="auth__proof-text">Gratis, sin anuncios y con el código abierto.</p>
+  <p class="auth__proof-text">Gratis, sin anuncios y con el corazón en el código.</p>
 </div>
-`
-
-// ========================================
-// Create wall form
-// ========================================
-
-export const WALL_AVAILABLE_COLORS = [
-  { value: '#ffffff', label: 'Blanco' },
-  { value: '#e0f2fe', label: 'Cielo' },
-  { value: '#bbf7d0', label: 'Menta' },
-  { value: '#fde047', label: 'Limón' },
-  { value: '#fdba74', label: 'Melocotón' },
-  { value: '#f9a8d4', label: 'Flamingo' },
-  { value: '#c4b5fd', label: 'Lila' },
-  { value: '#e2e8f0', label: 'Nubes' }
-]
-
-// Emitted as a JS array literal with single quotes:
-// double quotes would terminate the x-for attribute.
-const COLORS_LITERAL = WALL_AVAILABLE_COLORS
-  .map((color) => `{ value: '${color.value}', label: '${color.label}' }`)
-  .join(', ')
-
-export const CreateWallFormTemplate = `
-<form class="auth-form" @submit.prevent="submit()" novalidate :aria-busy="loading">
-
-  <div class="field">
-    <label class="field__label" for="wall-title">
-      Título del muro
-      <span class="field__optional" x-text="titleLength + '/40'"></span>
-    </label>
-    <div class="field__control">
-      <span class="field__icon">${ICONS.user}</span>
-      <input class="field__input"
-             id="wall-title"
-             type="text"
-             maxlength="40"
-             enterkeyhint="done"
-             placeholder="Mi mural de firmas"
-             x-model="title"
-             :aria-describedby="'wall-title-hint'">
-    </div>
-    <p class="field__hint" id="wall-title-hint">
-      Así lo verán tus amigos. Puedes cambiarlo después.
-    </p>
-  </div>
-
-  <fieldset class="field">
-    <legend class="field__label">Color del lienzo</legend>
-    <div class="color-swatches" role="group" aria-label="Color del lienzo">
-      <template x-for="color in [${COLORS_LITERAL}]" :key="color.value">
-        <button type="button"
-                class="color-swatch"
-                :style="'background-color: ' + color.value"
-                :aria-pressed="backgroundColor === color.value ? 'true' : 'false'"
-                :aria-label="color.label"
-                @click="backgroundColor = color.value"></button>
-      </template>
-    </div>
-  </fieldset>
-
-  <div class="field">
-    <label class="checkbox">
-      <input type="checkbox" x-model="isPublic">
-      <span class="checkbox__box">${ICONS.check}</span>
-      <span>
-        <strong>Muro público.</strong>
-        <span class="text-muted">Cualquiera con el link podrá firmar, sin registrarse.
-        Si lo desmarcas, solo tú podrás entrar.</span>
-      </span>
-    </label>
-  </div>
-
-  <div class="auth-form__alert" x-show="error" x-cloak role="alert">
-    ${ICONS.alert}
-    <span x-text="error"></span>
-  </div>
-</form>
-`
-
-export const EditWallFormTemplate = `
-<form class="auth-form" @submit.prevent="submit()" novalidate :aria-busy="loading">
-
-  <div class="field">
-    <label class="field__label" for="edit-wall-title">
-      Título del muro
-      <span class="field__optional" x-text="titleLength + '/40'"></span>
-    </label>
-    <div class="field__control">
-      <span class="field__icon">${ICONS.user}</span>
-      <input class="field__input"
-             id="edit-wall-title"
-             type="text"
-             maxlength="40"
-             enterkeyhint="done"
-             placeholder="Mi mural de firmas"
-             x-model="title"
-             :aria-describedby="'edit-wall-title-hint'">
-    </div>
-    <p class="field__hint" id="edit-wall-title-hint">
-      Así lo verán tus amigos.
-    </p>
-  </div>
-
-  <fieldset class="field">
-    <legend class="field__label">Color del lienzo</legend>
-    <div class="color-swatches" role="group" aria-label="Color del lienzo">
-      <template x-for="color in [${COLORS_LITERAL}]" :key="color.value">
-        <button type="button"
-                class="color-swatch"
-                :style="'background-color: ' + color.value"
-                :aria-pressed="backgroundColor === color.value ? 'true' : 'false'"
-                :aria-label="color.label"
-                @click="backgroundColor = color.value"></button>
-      </template>
-    </div>
-  </fieldset>
-
-  <div class="field">
-    <label class="checkbox">
-      <input type="checkbox" x-model="isPublic">
-      <span class="checkbox__box">${ICONS.check}</span>
-      <span>
-        <strong>Muro público.</strong>
-        <span class="text-muted">Cualquiera con el link podrá firmar, sin registrarse.
-        Si lo desmarcas, solo tú podrás entrar.</span>
-      </span>
-    </label>
-  </div>
-
-  <div class="auth-form__alert" x-show="error" x-cloak role="alert">
-    ${ICONS.alert}
-    <span x-text="error"></span>
-  </div>
-</form>
 `

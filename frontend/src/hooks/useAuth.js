@@ -57,9 +57,7 @@ export async function initAuth(Alpine, apiClient = api) {
     async login(email, password, remember = true) {
       this.error = null
       try {
-        console.log('[Auth] Calling apiClient.auth.login')
         const data = await apiClient.auth.login(email, password)
-        console.log('[Auth] Login response:', data)
         this.persistTokens(data, remember)
         this.user = data.user
         Alpine.store('app').setUser(data.user)
@@ -95,7 +93,7 @@ export async function initAuth(Alpine, apiClient = api) {
         this.persistTokens(data, remember)
         this.user = data.user
         Alpine.store('app').setUser(data.user)
-        Alpine.store('toast').success('¡Cuenta confirmada! Ya puedes crear tu primer muro')
+        Alpine.store('toast').success('¡Cuenta confirmada! Bienvenido a miMuro')
         return data.user
       } catch (error) {
         this.error = error.message || 'Error al confirmar el correo'
@@ -136,13 +134,13 @@ export async function initAuth(Alpine, apiClient = api) {
       Alpine.store('toast').info('Sesión cerrada')
     },
 
-    isOwner(wall) {
-      return Boolean(this.user && wall?.owner_id === this.user.id)
-    },
-
     getAuthHeader() {
       const token = getStoredToken()
       return token ? `Bearer ${token}` : null
+    },
+
+    getToken() {
+      return getStoredToken()
     }
   })
 

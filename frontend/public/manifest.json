@@ -1,7 +1,7 @@
 {
   "name": "miMuro",
   "short_name": "miMuro",
-  "description": "Tu lienzo digital para firmar y dibujar",
+  "description": "Tu muro para compartir y firmar",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

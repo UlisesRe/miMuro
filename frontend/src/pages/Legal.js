@@ -15,32 +15,30 @@ const LEGAL_DOCS = {
         heading: 'Qué recopilamos',
         paragraphs: [
           'Tu nombre y tu correo electrónico cuando creas una cuenta.',
-          'El título, el color de fondo y la visibilidad de cada muro que abres.',
-          'Los trazos y las firmas que se dibujan en los muros, para poder mostrarlos tal como los dejaste.'
+          'Tu contraseña, guardada siempre cifrada y nunca en texto plano.',
+          'Nada más: no pedimos teléfono, ni datos de pago, ni ubicación.'
         ]
       },
       {
         heading: 'Para qué lo usamos',
         paragraphs: [
-          'Para mantenerte dentro de tu cuenta y recordar qué muros son tuyos.',
-          'Para pintar el lienzo con los dibujos de todos los que firman.',
+          'Para mantenerte dentro de tu cuenta y reconocerte cuando vuelvas.',
           'Para avisarte si algo falla y podamos solucionarlo.'
         ],
-        after: 'No vendemos tus datos, no los prestamos y no usamos lo que escribes en tu muro para mostrarte publicidad.'
+        after: 'No vendemos tus datos, no los prestamos y no los usamos para mostrarte publicidad.'
       },
       {
         heading: 'Con quién se comparte',
         paragraphs: [
-          'En un muro público, cualquiera con el enlace puede verlo y firmarlo.',
-          'En un muro privado, solo tú puedes entrar desde tu cuenta.',
-          'El resto de tus datos no sale de miMuro salvo que la ley nos obligue.'
+          'Tus datos no salen de miMuro salvo que la ley nos obligue a ello.',
+          'No compartimos tu información con terceros ni la usamos con fines publicitarios.'
         ]
       },
       {
         heading: 'Tus derechos',
         paragraphs: [
           'Puedes pedir una copia de tus datos o el borrado completo de tu cuenta en cualquier momento.',
-          'Al borrar la cuenta se eliminan tus muros y las firmas que contiene.'
+          'Al borrar la cuenta se elimina toda tu información de miMuro.'
         ]
       }
     ],
@@ -62,15 +60,15 @@ const LEGAL_DOCS = {
       {
         heading: 'Lo que publicas',
         paragraphs: [
-          'Sigues siendo autor de todo lo que dibujas o escribes en tus muros.',
-          'Nos das permiso para mostrar ese contenido dentro de miMuro, que es para lo que existe el servicio.'
+          'Sigues siendo autor de todo lo que compartes en miMuro.',
+          'Nos das permiso para mostrar ese contenido dentro del servicio, que es para lo que existe.'
         ]
       },
       {
         heading: 'Usos que no permitimos',
         paragraphs: [
           'No se puede usar miMuro para actividad ilegal, acoso, suplantación o envío de spam.',
-          'Tampoco para intentar romper el servicio o acceder a muros ajenos sin permiso.'
+          'Tampoco para intentar romper el servicio o acceder a cuentas ajenas sin permiso.'
         ]
       },
       {
@@ -92,7 +90,7 @@ const LEGAL_DOCS = {
       {
         heading: 'Escríbenos',
         paragraphs: [
-          'Dudas sobre tu cuenta, una facturación o un muro que no se comporta bien: cuéntanoslo y respondemos en unos días.',
+          'Dudas sobre tu cuenta o algo que no se comporta bien: cuéntanoslo y respondemos en unos días.',
           'Correo: contacto@mimuro.app'
         ]
       },

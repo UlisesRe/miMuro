@@ -106,3 +106,5 @@ AGENTS.md
 .opencode/commands/specify.md
 .opencode/commands/tasks.md
 .opencode/commands/verify.md
+.worktrees/
+.opencode/rsc/connect-tool

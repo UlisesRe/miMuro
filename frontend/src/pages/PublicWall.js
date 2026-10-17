@@ -1,188 +1,267 @@
 // ========================================
-// miMuro - Public Wall Page (for /w/:slug)
+// miMuro - Public wall page (/w/:slug)
 //
-// Flow:
-//   1. The visitor lands on a blurred view of
-//      the wall inside the normal app page
-//      (header, footer and nav stay visible).
-//   2. They type their name and confirm.
-//   3. The framed canvas becomes drawable plus
-//      the floating drawing palette.
-//      Signed-in users skip the name prompt.
+// El invitado llega por el link, mira el muro en solo lectura (zoom,
+// desplazamiento y descarga) y puede **firmar**: escribe su nombre,
+// dibuja con el lápiz y esos trazos se agregan al final del lienzo.
+//
+// Solo lápiz: nadie borra lo de los demás. Los trazos de la firma viven
+// en `draft` hasta que se envían; el muro completo se redibuja desde los
+// datos con el motor compartido (`utils/wallCanvas.js`).
 // ========================================
 
 import { api } from '../services/api.js'
-import { useCanvas } from '../hooks/useCanvas.js'
-import { wsClient } from '../services/ws.js'
-import { trackOverlayInsets } from '../utils/overlayInsets.js'
+import {
+  WALL_SIZE,
+  renderStrokes,
+  drawSegment,
+  pointFromEvent,
+  downloadWallPng
+} from '../utils/wallCanvas.js'
 
-const NAME_KEY = 'mimuro_visitor_name'
+const ICONS = {
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 5 5 12 12 19"></polyline></svg>',
+  minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+}
+
+const COLORS = [
+  '#16181d',
+  '#ffffff',
+  '#e03131',
+  '#f08c00',
+  '#2f9e44',
+  '#1971c2',
+  '#7048e8',
+  '#d6336c'
+]
+
+// Tope de trazos por firma (el backend corta en el mismo número).
+const MAX_DRAFT_STROKES = 60
 
 export function PublicWallPageComponent() {
   return {
-    wall: null,
-    loading: true,
-    error: null,
-    entered: false,
-    nameInput: '',
-    userName: 'Visitante',
-    cursors: [],
-    canvasApi: null,
     publicWallTemplate: PublicWallTemplate,
 
+    wallSize: WALL_SIZE,
+    wallSlug: '',
+    wall: null,
+
+    loading: true,
+    loadError: null,
+
+    // Modo ver: zoom y desplazamiento con CSS (no se repinta el canvas).
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    panning: false,
+    panOrigin: { x: 0, y: 0 },
+
+    // Firma del invitado.
+    signing: false,
+    signerName: '',
+    color: COLORS[0],
+    width: 6,
+    colors: COLORS,
+    draft: [],
+    drawing: false,
+    sending: false,
+
     async init() {
-      const slug = this.$router.getParams().slug
-      if (!slug) {
-        this.error = 'El enlace del muro no es válido'
-        this.loading = false
-        return
+      this.wallSlug = this.$router.getParams().slug || ''
+      await this.load()
+    },
+
+    get backgroundColor() {
+      return this.wall?.background_color || '#ffffff'
+    },
+
+    get canvasTransform() {
+      return `transform: translate(${this.panX}px, ${this.panY}px) scale(${this.zoom});`
+    },
+
+    // Nombres únicos de quienes ya firmaron (los trazos del dueño no tienen).
+    get signerNames() {
+      const names = []
+      for (const stroke of this.strokes) {
+        const name = stroke.signer_name
+        if (name && !names.includes(name)) names.push(name)
       }
-
-      await this.loadWall(slug)
+      return names
     },
 
-    destroy() {
-      this._stopEnter?.()
-      this.canvasApi?.destroy()
-      wsClient.disconnect()
+    get canSign() {
+      return Boolean(this.signerName.trim()) && this.draft.length > 0 && !this.sending
     },
 
-    async loadWall(slug) {
+    async load() {
       this.loading = true
-      this.error = null
-
+      this.loadError = null
       try {
-        this.wall = await api.request(`/walls/slug/${slug}`)
-
-        // Signed-in visitors already have a name. Anonymous
-        // ones that already signed in this tab keep the one
-        // they entered; otherwise we show the prompt.
-        if (this.$store.auth.user) {
-          this.userName = this.$store.auth.user.name
-          this.entered = true
-        } else {
-          const saved = sessionStorage.getItem(NAME_KEY)
-          if (saved) {
-            this.userName = saved
-            this.nameInput = saved
-            this.entered = true
-          }
-        }
-
-        // The canvas only exists once the view has
-        // rendered, so the flag has to drop and the
-        // DOM has to settle before it can be wired.
-        this.loading = false
+        const wall = await api.walls.getPublic(this.wallSlug)
+        this.wall = wall
+        this.strokes = wall.strokes || []
         await this.$nextTick()
-        // The name prompt is a fixed layer too: give it
-        // the same header/footer insets so the app chrome
-        // never disappears behind it.
-        this._stopEnter = trackOverlayInsets(
-          document.querySelector('.wall-enter')
-        )
-        if (!(await this.initCanvas())) return
-
-        await this.loadStrokes()
-        this.connectWebSocket()
+        this.redraw()
       } catch (error) {
-        this.error =
+        this.loadError =
           error?.status === 404
-            ? 'El muro que buscas no existe o ya no es público.'
-            : error?.message === 'Error de conexión'
-              ? 'No pudimos conectar con el servidor.'
-              : 'No se pudo cargar el muro'
+            ? 'Este muro no existe o es privado.'
+            : error?.message || 'No pudimos cargar el muro'
+      } finally {
         this.loading = false
       }
     },
 
-    enterWall() {
-      const name = this.nameInput.trim()
-      if (name.length < 2) {
-        this.$store.toast.info('Escribí tu nombre para firmar')
+    redraw() {
+      const ctx = this.context()
+      if (ctx) renderStrokes(ctx, [...this.strokes, ...this.draft])
+    },
+
+    context() {
+      const canvas = this.$refs.canvas
+      return canvas ? canvas.getContext('2d') : null
+    },
+
+    goHome() {
+      this.$router.navigate('/')
+    },
+
+    // --------------------------------------
+    // Firma
+
+    startSigning() {
+      this.signing = true
+      this.draft = []
+      this.resetView()
+    },
+
+    cancelSigning() {
+      this.signing = false
+      this.drawing = false
+      this.draft = []
+      this.redraw()
+    },
+
+    onPointerDown(event) {
+      if (this.loading || this.loadError) return
+
+      // Sin firmar: el puntero mueve el lienzo.
+      if (!this.signing) {
+        this.panning = true
+        this.panOrigin = { x: event.clientX - this.panX, y: event.clientY - this.panY }
+        event.currentTarget.setPointerCapture(event.pointerId)
         return
       }
-      this.userName = name
-      sessionStorage.setItem(NAME_KEY, name)
-      this.entered = true
-      this.$store.toast.success(`¡Hola, ${name}! Dejá tu firma en el muro`)
-    },
 
-    async initCanvas() {
-      // Alpine only registers `x-ref`, and the canvas lives inside
-      // an x-if branch, so wait for the element before wiring up.
-      for (let attempt = 0; attempt < 10 && !this.$refs.canvasRef; attempt++) {
-        await this.$nextTick()
+      if (this.draft.length >= MAX_DRAFT_STROKES) {
+        this.$store.toast.info('Tu firma ya es bastante grande')
+        return
       }
 
-      const canvasEl = this.$refs.canvasRef
-      if (typeof canvasEl?.getContext !== 'function') {
-        this.error = 'No pudimos inicializar el lienzo.'
-        this.loading = false
-        return false
-      }
-
-      this.canvasApi = useCanvas({ value: canvasEl }, {
-        // Public walls are open, so visitors can sign.
-        readOnly: false,
-        backgroundColor: this.wall?.background_color || '#ffffff',
-        onStrokeComplete: (stroke) => this.handleStrokeComplete(stroke)
+      event.currentTarget.setPointerCapture(event.pointerId)
+      const point = pointFromEvent(this.$refs.canvas, event)
+      this.draft.push({
+        tool: 'pen',
+        color: this.color,
+        width: this.width,
+        points: [point.x, point.y]
       })
-      this.canvasApi.init()
-      return true
+      this.drawing = true
+      // Repinta con el punto inicial para que un toque suelto deje marca.
+      this.redraw()
     },
 
-    async loadStrokes() {
+    onPointerMove(event) {
+      if (!this.signing) {
+        if (!this.panning) return
+        this.panX = event.clientX - this.panOrigin.x
+        this.panY = event.clientY - this.panOrigin.y
+        return
+      }
+
+      if (!this.drawing) return
+      const stroke = this.draft[this.draft.length - 1]
+      if (!stroke) return
+
+      const ctx = this.context()
+      if (!ctx) return
+
+      const point = pointFromEvent(this.$refs.canvas, event)
+      stroke.points.push(point.x, point.y)
+      drawSegment(ctx, stroke)
+    },
+
+    onPointerUp() {
+      this.drawing = false
+      this.panning = false
+    },
+
+    async submitSignature() {
+      if (!this.canSign) return
+      this.sending = true
+      const name = this.signerName.trim()
       try {
-        const data = await api.strokes.list(this.wall.id)
-        this.canvasApi?.loadStrokes(data.strokes || data || [])
+        await api.walls.sign(this.wall.slug, { name, strokes: this.draft })
+        // El backend guarda los mismos trazos con el nombre: los sumamos
+        // en local para no volver a pedir el muro entero.
+        this.strokes = this.strokes.concat(
+          this.draft.map((stroke) => ({ ...stroke, signer_name: name }))
+        )
+        this.draft = []
+        this.drawing = false
+        this.signing = false
+        this.signerName = ''
+        this.resetView()
+        await this.$nextTick()
+        this.redraw()
+        this.$store.toast.success('¡Gracias por firmar!')
       } catch (error) {
-        console.error('No se pudieron cargar los trazos:', error)
+        this.$store.toast.error(error?.message || 'No pudimos guardar tu firma')
+      } finally {
+        this.sending = false
       }
     },
 
-    connectWebSocket() {
-      wsClient.on('stroke', (stroke) => {
-        if (stroke.author_id !== this.getUserId()) {
-          this.canvasApi?.addRemoteStroke(stroke)
-        }
-      })
+    // --------------------------------------
+    // Zoom y descarga
 
-      wsClient.on('delete', (data) => this.canvasApi?.removeRemoteStroke(data.stroke_id))
-      wsClient.on('reset', () => this.canvasApi?.resetRemote())
-
-      wsClient.on('cursor', (position) => {
-        if (position.user_id !== this.getUserId()) this.cursors.push(position)
-      })
-
-      wsClient
-        .connect(this.wall.id, this.$store.auth.getAuthHeader())
-        .catch((error) => console.error('WebSocket no disponible:', error))
+    setZoom(value) {
+      this.zoom = Math.min(4, Math.max(1, Math.round(value * 100) / 100))
     },
 
-    handleStrokeComplete(stroke) {
-      const payload = {
-        ...stroke,
-        author_id: this.getUserId(),
-        author_name: this.userName
-      }
-
-      api.strokes.create(this.wall.id, payload).catch(console.error)
-      wsClient.sendStroke(payload)
+    zoomIn() {
+      this.setZoom(this.zoom + 0.25)
     },
 
-    getUserId() {
-      return this.$store.auth.user?.id || null
+    zoomOut() {
+      this.setZoom(this.zoom - 0.25)
     },
 
-    undo() {
-      if (this.canvasApi?.undo()) {
-        const strokes = this.canvasApi.getStrokes()
-        if (strokes.length > 0) wsClient.sendDeleteStroke(strokes[strokes.length - 1].id)
-      }
+    resetView() {
+      this.zoom = 1
+      this.panX = 0
+      this.panY = 0
     },
 
-    redo() {
-      this.canvasApi?.redo()
+    onWheel(event) {
+      // Mientras firma, la rueda no mueve el lienzo: se está dibujando.
+      if (this.signing) return
+      event.preventDefault()
+      this.setZoom(this.zoom + (event.deltaY < 0 ? 0.15 : -0.15))
+    },
+
+    async download() {
+      if (!this.wall) return
+      const name = this.wall.title.replace(/[^\w\-áéíóúñ ]+/gi, '').trim() || 'mimuro'
+      const ok = await downloadWallPng(
+        this.$refs.canvas,
+        this.backgroundColor,
+        `${name}.png`
+      )
+      if (ok) this.$store.toast.success('Imagen descargada')
     }
   }
 }
@@ -192,106 +271,128 @@ export function registerPublicWallPage(Alpine) {
 }
 
 export const PublicWallTemplate = `
-<div class="page page--wall"
-     data-wall-page
-     @keydown.ctrl.z.prevent="entered && undo()"
-     @keydown.ctrl.y.prevent="entered && redo()"
-     @keydown.meta.z.prevent="entered && undo()"
-     @keydown.meta.y.prevent="entered && redo()">
+<div class="page page--editor">
+  <div class="container container--wide">
 
-  <template x-if="loading">
-    <div class="state" role="status">
+    <header class="editor-header">
+      <div class="editor-header__identity">
+        <a href="/" class="btn btn--icon btn--ghost"
+           @click.prevent="goHome()" aria-label="Volver al inicio">
+          ${ICONS.back}
+        </a>
+        <div class="editor-header__text">
+          <h1 class="editor-header__title" x-text="wall?.title || 'Muro'"></h1>
+          <span class="editor-header__meta" x-show="wall?.owner_name" x-cloak>
+            Muro de <strong x-text="wall?.owner_name"></strong>
+          </span>
+        </div>
+      </div>
+
+      <span class="badge badge--success" x-show="wall" x-cloak>Se puede firmar</span>
+    </header>
+
+    <div class="state" x-show="loading" x-cloak>
       <span class="spinner spinner--lg" aria-hidden="true"></span>
       <p class="state__text">Cargando el muro...</p>
     </div>
-  </template>
 
-  <template x-if="error && !loading">
-    <div class="state state--error" role="alert">
-      <span class="state__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="12"></line>
-          <line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </svg>
-      </span>
-      <h1 class="state__title">Muro no encontrado</h1>
-      <p class="state__text" x-text="error"></p>
-      <a href="/" class="btn btn--primary" @click.prevent="$router.navigate('/')">Volver al inicio</a>
+    <div class="state state--error" x-show="!loading && loadError" x-cloak>
+      <span class="state__icon" aria-hidden="true">${ICONS.alert}</span>
+      <h2 class="state__title">No pudimos abrir el muro</h2>
+      <p class="state__text" x-text="loadError"></p>
+      <a href="/" class="btn btn--primary" @click.prevent="goHome()">Volver al inicio</a>
     </div>
-  </template>
 
-  <!-- Name prompt: the canvas (blurred behind) is already
-       loaded and shows every signature left so far. -->
-  <template x-if="wall && !loading && !error && !entered">
-    <div class="wall-enter" role="dialog" aria-modal="true" aria-labelledby="wall-enter-title">
-      <div class="wall-enter__panel">
-        <h1 class="wall-enter__title" id="wall-enter-title">Te toca firmar</h1>
-        <p class="wall-enter__subtitle">
-          Decinos tu nombre y dejá tu firma en
-          <strong class="wall-enter__wall" x-text="wall.title"></strong>.
-        </p>
+    <div class="editor" x-show="!loading && !loadError" x-cloak>
 
-        <form class="wall-enter__form" @submit.prevent="enterWall()">
-          <input class="field__input wall-enter__input"
-                 type="text"
-                 x-model="nameInput"
-                 maxlength="40"
-                 autocomplete="nickname"
-                 placeholder="Tu nombre"
-                 aria-label="Tu nombre"
-                 required>
-          <button type="submit" class="btn btn--primary btn--lg btn--block"
-                  :disabled="!nameInput.trim()">
-            Entrar a firmar
+      <div class="toolbar" x-show="!signing" x-cloak>
+        <div class="toolbar__group">
+          <button type="button" class="btn btn--icon btn--ghost" @click="zoomOut()" aria-label="Alejar">
+            ${ICONS.minus}
           </button>
-        </form>
+          <span class="toolbar__zoom" x-text="Math.round(zoom * 100) + '%'"></span>
+          <button type="button" class="btn btn--icon btn--ghost" @click="zoomIn()" aria-label="Acercar">
+            ${ICONS.plus}
+          </button>
+          <button type="button" class="btn btn--ghost btn--sm" @click="resetView()">Centrar</button>
+        </div>
 
-        <p class="wall-enter__hint" x-show="!$store.auth.isAuthenticated">
-          Lo verán los demás junto a tu firma.
-        </p>
-      </div>
-    </div>
-  </template>
-
-  <!-- Drawing palette: round floating handle, drag to move -->
-  <div x-show="wall && !loading && !error && entered"
-       x-cloak>
-    <div x-data="toolbarComponent">
-      <div x-html="$store.templates.toolbar"></div>
-    </div>
-  </div>
-
-  <!-- The framed canvas keeps the site look: container gutters,
-       border and rounded corners. It flex-fills the height the
-       app shell leaves free below the header. Loading happens
-       as soon as the wall is known (behind the name prompt) so
-       every prior signature is already in place on entry. -->
-  <template x-if="wall && !loading && !error">
-    <div class="wall-stage wall-stage--framed">
-      <div class="container">
-        <div class="wall-canvas-frame wall-canvas-frame--framed"
-             :style="'--canvas-bg: ' + (wall.background_color || '#ffffff')">
-          <div class="wall-canvas-holder">
-            <canvas class="wall-canvas"
-                    x-ref="canvasRef"
-                    role="application"
-                    aria-label="Lienzo de dibujo. Mantén pulsado y arrastra para firmar."></canvas>
-
-            <div class="wall-cursors" aria-hidden="true">
-              <template x-for="cursor in cursors" :key="cursor.user_id">
-                <div class="remote-cursor"
-                     :style="'left: ' + cursor.x + 'px; top: ' + cursor.y + 'px; --cursor-color: ' + (cursor.color || '#7c3aed')">
-                  <span class="remote-cursor__pointer"></span>
-                  <span class="remote-cursor__label" x-text="cursor.name"></span>
-                </div>
-              </template>
-            </div>
-          </div>
+        <div class="toolbar__group toolbar__group--end">
+          <button type="button" class="btn btn--ghost btn--sm" @click="download()">
+            ${ICONS.download}
+            Descargar PNG
+          </button>
+          <button type="button" class="btn btn--primary btn--sm" @click="startSigning()">
+            Firmar el muro
+          </button>
         </div>
       </div>
+
+      <div class="toolbar" x-show="signing" x-cloak>
+        <label class="toolbar__field">
+          <span class="toolbar__label">Tu nombre</span>
+          <input type="text" class="toolbar__input" maxlength="60" placeholder="Ej.: Ana"
+                 x-model="signerName" aria-label="Tu nombre">
+        </label>
+
+        <div class="toolbar__group toolbar__colors">
+          <template x-for="option in colors" :key="option">
+            <button type="button" class="swatch swatch--sm"
+                    :class="{ 'swatch--active': color === option }"
+                    :style="'background-color:' + option"
+                    :aria-label="'Color ' + option"
+                    :aria-pressed="color === option ? 'true' : 'false'"
+                    @click="color = option"></button>
+          </template>
+        </div>
+
+        <label class="toolbar__range">
+          <span class="toolbar__label">Grosor</span>
+          <input type="range" min="2" max="24" step="1" x-model.number="width"
+                 :aria-valuetext="width + ' píxeles'">
+        </label>
+
+        <div class="toolbar__group toolbar__group--end">
+          <button type="button" class="btn btn--ghost btn--sm" @click="cancelSigning()">Cancelar</button>
+          <button type="button" class="btn btn--primary btn--sm"
+                  @click="submitSignature()" :disabled="!canSign"
+                  :data-busy="sending ? 'true' : 'false'">
+            <span class="spinner spinner--sm" x-show="sending" x-cloak aria-hidden="true"></span>
+            <span x-text="sending ? 'Firmando...' : 'Firmar el muro'"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="editor__stage" :class="{ 'editor__stage--view': !signing }"
+           @wheel="onWheel($event)">
+        <div class="editor__canvas-wrap" :style="canvasTransform">
+          <canvas class="editor__canvas" x-ref="canvas" x-init="redraw()"
+                  :width="wallSize" :height="wallSize"
+                  :style="'background-color:' + backgroundColor"
+                  @pointerdown="onPointerDown($event)"
+                  @pointermove="onPointerMove($event)"
+                  @pointerup="onPointerUp()"
+                  @pointercancel="onPointerUp()"></canvas>
+        </div>
+      </div>
+
+      <p class="editor__hint" x-show="!signing" x-cloak>
+        Arrastrá para mover el lienzo. Usá la rueda o los botones para acercar.
+      </p>
+      <p class="editor__hint" x-show="signing" x-cloak>
+        Escribí tu nombre y dibujá con el dedo o el mouse. Solo se agrega lo que dibujes vos.
+      </p>
+
+      <section class="signers" x-show="!signing && signerNames.length" x-cloak>
+        <h2 class="signers__title" x-text="'Ya firmaron (' + signerNames.length + ')'"></h2>
+        <ul class="signers__list">
+          <template x-for="name in signerNames" :key="name">
+            <li class="signers__item" x-text="name"></li>
+          </template>
+        </ul>
+      </section>
+
     </div>
-  </template>
+  </div>
 </div>
 `

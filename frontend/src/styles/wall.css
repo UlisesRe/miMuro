@@ -1,0 +1,518 @@
+/* ========================================
+   miMuro - Walls
+   "Mis muros" grid, the create dialog and
+   the wall editor (edit / view modes).
+   ======================================== */
+
+.container--wide {
+  max-width: 56rem;
+}
+
+/* ========================================
+   Grid of walls
+   ======================================== */
+
+.wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: inherit;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  text-decoration: none;
+  transition:
+    box-shadow var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-in-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.wall-card:hover {
+  color: inherit;
+  text-decoration: none;
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.wall-card__thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+/* Subtle grid so a blank canvas still reads as a canvas. */
+.wall-card__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgb(0 0 0 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.06) 1px, transparent 1px);
+  background-size: 1.25rem 1.25rem;
+}
+
+.wall-card__badge {
+  position: absolute;
+  top: var(--space-2xs);
+  inset-inline-end: var(--space-2xs);
+}
+
+.wall-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm);
+}
+
+.wall-card__title {
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wall-card__meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ========================================
+   Dialog
+   ======================================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-overlay);
+}
+
+.modal__panel {
+  position: relative;
+  width: 100%;
+  max-width: 27rem;
+  max-height: calc(100vh - var(--space-xl));
+  overflow-y: auto;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-lg) var(--space-xs);
+}
+
+.modal__title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg) var(--space-lg);
+}
+
+/* ========================================
+   Colour swatches
+   ======================================== */
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.swatch {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  transition:
+    box-shadow var(--duration-fast) var(--ease-in-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.swatch:hover {
+  transform: scale(1.06);
+}
+
+.swatch--active {
+  box-shadow:
+    inset 0 0 0 1px var(--color-border-strong),
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--color-primary);
+}
+
+.swatch--sm {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* ========================================
+   Visibility choice
+   ======================================== */
+
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm);
+  text-align: start;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--duration-fast) var(--ease-in-out),
+    background-color var(--duration-fast) var(--ease-in-out),
+    box-shadow var(--duration-fast) var(--ease-in-out);
+}
+
+.choice span {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--color-text-muted);
+}
+
+.choice--active {
+  background-color: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+/* ========================================
+   Editor page
+   ======================================== */
+
+.page--editor {
+  padding-block: var(--space-lg) var(--space-2xl);
+}
+
+.editor-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+@media (min-width: 640px) {
+  .editor-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+  }
+}
+
+.editor-header__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.editor-header__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+
+.editor-header__title {
+  margin: 0;
+  max-width: 100%;
+  font-size: var(--text-xl);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========================================
+   Mode switch (Editar / Ver)
+   ======================================== */
+
+.mode-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  background-color: var(--color-bg-muted);
+  border-radius: var(--radius-full);
+}
+
+.mode-switch__btn {
+  min-height: 2.5rem;
+  padding-inline: var(--space-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  transition:
+    background-color var(--duration-fast) var(--ease-in-out),
+    color var(--duration-fast) var(--ease-in-out);
+}
+
+.mode-switch__btn:hover {
+  color: var(--color-text);
+}
+
+.mode-switch__btn.is-active {
+  color: var(--color-primary-contrast);
+  background: var(--gradient-brand);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ========================================
+   Editor toolbar
+   ======================================== */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-sm);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.toolbar__group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+}
+
+.toolbar__group--end {
+  margin-inline-start: auto;
+  gap: var(--space-xs);
+}
+
+.toolbar__colors {
+  flex-wrap: wrap;
+}
+
+.toolbar__confirm {
+  display: inline-flex;
+  gap: var(--space-3xs);
+}
+
+.toolbar__range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.toolbar__label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.toolbar__zoom {
+  min-width: 3.25rem;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.toolbar input[type='range'] {
+  width: 6rem;
+  accent-color: var(--color-primary);
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--duration-fast) var(--ease-in-out),
+    color var(--duration-fast) var(--ease-in-out);
+}
+
+.tool:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg-muted);
+}
+
+.tool svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.tool.is-active {
+  color: var(--color-primary);
+  background-color: var(--color-primary-soft);
+}
+
+/* ========================================
+   Canvas stage
+   ======================================== */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor__stage {
+  position: relative;
+  width: 100%;
+  max-width: 42rem;
+  margin-inline: auto;
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: crosshair;
+  background-color: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  touch-action: none;
+}
+
+.editor__canvas-wrap {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+}
+
+.editor__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.editor__stage--view {
+  cursor: grab;
+}
+
+.editor__stage--view:active {
+  cursor: grabbing;
+}
+
+.editor__hint {
+  margin-top: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ========================================
+   Firma de invitados (/w/:slug)
+   ======================================== */
+
+.editor-header__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.editor-header__link {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.toolbar__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.toolbar__input {
+  width: 9rem;
+  min-height: 2.25rem;
+  padding-inline: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.toolbar__input:focus-visible {
+  border-color: var(--color-primary);
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.signers {
+  margin-top: var(--space-lg);
+  text-align: center;
+}
+
+.signers__title {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.signers__list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signers__item {
+  padding: 2px var(--space-xs);
+  font-size: var(--text-xs);
+  background-color: var(--color-bg-muted);
+  border-radius: var(--radius-full);
+}

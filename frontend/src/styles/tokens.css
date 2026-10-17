@@ -55,13 +55,12 @@
   --color-border-strong: #ced4da;
   --color-border-focus: var(--color-primary);
 
-  /* Canvas */
-  --canvas-bg: #ffffff;
-  --canvas-grid-color: #e4e7eb;
+  /* Grid pattern used by the home hero preview */
+  --grid-color: #e4e7eb;
 
   /* ----------------------------------------
      Signature gradient - neutral slate.
-     Used on the FAB, primary surfaces and the focus ring.
+     Used on primary surfaces and the focus ring.
      ---------------------------------------- */
   --gradient-brand: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
   --gradient-brand-hover: linear-gradient(135deg, #1e293b 0%, #2d3a4f 55%, #475569 100%);
@@ -174,7 +173,6 @@
   --container-prose: 40rem;
   --header-height: 3.5rem;
   --tabbar-height: 4.25rem;
-  --fab-size: 3.5rem;
   --tap-target: 2.75rem;
 
   /* Device safe areas (notches, home indicator) */
@@ -190,7 +188,6 @@
   --z-raised: 10;
   --z-sticky: 100;
   --z-tabbar: 200;
-  --z-fab: 250;
   --z-header: 300;
   --z-dropdown: 400;
   --z-overlay: 500;
@@ -246,8 +243,7 @@
   --color-border-strong: #39414b;
   --color-border-focus: #e6e9ee;
 
-  --canvas-bg: #14181d;
-  --canvas-grid-color: #262c34;
+  --grid-color: #262c34;
 
   --gradient-brand: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 55%, #94a3b8 100%);
   --gradient-brand-hover: linear-gradient(135deg, #ffffff 0%, #f1f5f9 55%, #cbd5e1 100%);

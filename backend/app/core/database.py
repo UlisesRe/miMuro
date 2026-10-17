@@ -21,6 +21,9 @@ _LIGHT_MIGRATIONS = {
         ("confirmation_attempts", "ALTER TABLE users ADD COLUMN confirmation_attempts INTEGER NOT NULL DEFAULT 0"),
         ("confirmation_sent_at", "ALTER TABLE users ADD COLUMN confirmation_sent_at DATETIME"),
     ],
+    "strokes": [
+        ("signer_name", "ALTER TABLE strokes ADD COLUMN signer_name VARCHAR(60)"),
+    ],
 }
 
 

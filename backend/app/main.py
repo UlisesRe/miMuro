@@ -1,60 +1,70 @@
-import secrets
-import string
+"""miMuro - API (Starlette).
+
+Autenticación con confirmación por email, un contador público de miembros
+y el muro: cada usuario crea lienzos (nombre, color y visibilidad) y los
+traza. Los trazos se guardan como datos, no como píxeles.
+"""
+
 import json
-import hashlib
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, List, Set
+import re
+import secrets
 
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import JSONResponse, Response
-from starlette.routing import Route, WebSocketRoute, Mount
-from starlette.websockets import WebSocket, WebSocketDisconnect
 from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.database import engine, Base, get_db, run_light_migrations
+from app.core.database import Base, engine, get_db, run_light_migrations
 from app.core import confirmation as confirmation_service
 from app.core import email as email_service
 from app.core.security import (
-    verify_password, get_password_hash,
-    create_access_token, create_refresh_token, decode_token, subject_id
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    get_password_hash,
+    subject_id,
+    verify_password,
 )
-from app.models import User, Wall, Stroke, Signer, ToolType
+from app.models import Stroke, User, Wall
 
 settings = get_settings()
 
 
 # ==========================================
-# Helper functions
+# Errors
 # ==========================================
 
-def generate_slug() -> str:
-    alphabet = string.ascii_lowercase + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(8))
+class HTTPException(Exception):
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
 
+
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+# ==========================================
+# Helpers
+# ==========================================
 
 def validate_email(email: str) -> bool:
-    import re
-    return bool(re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', email))
-
-
-def validate_hex_color(color: str) -> bool:
-    import re
-    return bool(re.match(r'^#[0-9a-fA-F]{6}$', color))
+    return bool(re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email))
 
 
 def get_current_user(request: Request, db: Session) -> User:
-    # Try cookie first, then Authorization header
+    # Cookie first, then Authorization header.
     access_token = request.cookies.get("access_token")
     if not access_token:
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
             access_token = auth_header[7:]
-    
+
     if not access_token:
         raise HTTPException(status_code=401, detail="No autenticado")
     payload = decode_token(access_token)
@@ -67,70 +77,37 @@ def get_current_user(request: Request, db: Session) -> User:
     return user
 
 
-def get_optional_user(request: Request, db: Session) -> Optional[User]:
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        auth_header = request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            access_token = auth_header[7:]
-    
-    if not access_token:
-        return None
-    payload = decode_token(access_token)
-    if not payload or payload.get("type") != "access":
-        return None
-    user_id = subject_id(payload)
-    if user_id is None:
-        return None
-    return db.query(User).filter(User.id == user_id).first()
+def user_to_dict(user: User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "is_confirmed": bool(user.is_confirmed),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
 
 
-def get_client_ip(request: Request) -> str:
-    # Detrás de un proxy/nginx la IP real llega en X-Forwarded-For
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client:
-        return request.client.host
-    return ""
-
-
-def hash_ip(ip: str) -> str:
-    return hashlib.sha256(f"{settings.secret_key}:{ip}".encode("utf-8")).hexdigest()
-
-
-def record_signature(request: Request, wall: Wall, user: Optional[User], db: Session) -> bool:
-    """Registra una firma mientras sea una persona distinta del dueño.
-
-    Cada IP única suma 1 (aunque vuelva a entrar y edite); el dueño
-    dibujando sobre su propio muro nunca cuenta como firma.
-    """
-    if user and wall.owner_id == user.id:
-        return False
-    ip = get_client_ip(request)
-    if not ip:
-        return False
-    ip_hash = hash_ip(ip)
-    exists = db.query(Signer.id).filter(Signer.ip_hash == ip_hash).first() is not None
-    if exists:
-        return False
-    db.add(Signer(ip_hash=ip_hash, wall_id=wall.id, author_id=user.id if user else None))
-    db.commit()
-    return True
-
-
-class HTTPException(Exception):
-    def __init__(self, status_code: int, detail: str):
-        self.status_code = status_code
-        self.detail = detail
-
-
-async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+def set_session_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        "access_token",
+        access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=settings.access_token_expire_minutes * 60,
+    )
+    response.set_cookie(
+        "refresh_token",
+        refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+    )
 
 
 # ==========================================
-# Auth routes
+# Auth
 # ==========================================
 
 def _pending_registration_response(user: User, email_sent: bool) -> JSONResponse:
@@ -140,15 +117,15 @@ def _pending_registration_response(user: User, email_sent: bool) -> JSONResponse
             "id": user.id,
             "email": user.email,
             "name": user.name,
-            "is_confirmed": False
+            "is_confirmed": False,
         },
         "email_confirmation": {
             "required": True,
             "sent": email_sent,
             "destiny": user.email,
             "expires_in_minutes": settings.confirmation_code_expire_minutes,
-            "resend_cooldown_seconds": settings.confirmation_resend_cooldown_seconds
-        }
+            "resend_cooldown_seconds": settings.confirmation_resend_cooldown_seconds,
+        },
     })
 
 
@@ -171,12 +148,12 @@ async def register(request: Request):
         if existing:
             if existing.is_confirmed:
                 return JSONResponse({"detail": "Email ya registrado"}, status_code=400)
-            # Registro pendiente: retomar el flujo reenviando el código
+            # Registro pendiente: retomar el flujo reenviando el código.
             wait = confirmation_service.seconds_until_resend(existing)
             if wait > 0:
                 return JSONResponse(
                     {"detail": f"Ya te enviamos un código. Esperá {wait} segundos antes de pedir otro."},
-                    status_code=429
+                    status_code=429,
                 )
             code = confirmation_service.issue_code(existing, db)
             email_sent = email_service.send_confirmation_email(existing.email, existing.name, code)
@@ -185,7 +162,7 @@ async def register(request: Request):
         user = User(
             email=email,
             name=name,
-            password_hash=get_password_hash(password)
+            password_hash=get_password_hash(password),
         )
         db.add(user)
         db.commit()
@@ -212,8 +189,8 @@ async def login(request: Request):
 
         if not user.is_confirmed:
             return JSONResponse(
-                {"detail": "Tu registro está pendiente de confirmación. Revisá tu correo para terminarlo."},
-                status_code=403
+                {"detail": "Tu cuenta todavía está pendiente de confirmación. Revisá tu correo."},
+                status_code=403,
             )
 
         access_token = create_access_token({"sub": user.id})
@@ -223,16 +200,9 @@ async def login(request: Request):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "name": user.name,
-                "is_confirmed": bool(user.is_confirmed),
-                "created_at": user.created_at.isoformat() if user.created_at else None
-            }
+            "user": user_to_dict(user),
         })
-        response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="lax", max_age=settings.access_token_expire_minutes * 60)
-        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="lax", max_age=settings.refresh_token_expire_days * 24 * 60 * 60)
+        set_session_cookies(response, access_token, refresh_token)
         return response
     finally:
         db.close()
@@ -241,31 +211,33 @@ async def login(request: Request):
 async def refresh_token(request: Request):
     db = next(get_db())
     try:
-        refresh_token = request.cookies.get("refresh_token")
-        if not refresh_token:
-            return JSONResponse({"detail": "Refresh token requerido"}, status_code=401)
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        token = (
+            request.cookies.get("refresh_token")
+            or data.get("refresh_token")
+            or ""
+        )
 
-        payload = decode_token(refresh_token)
+        payload = decode_token(token) if token else None
         if not payload or payload.get("type") != "refresh":
-            return JSONResponse({"detail": "Refresh token inválido"}, status_code=401)
+            return JSONResponse({"detail": "Sesión expirada"}, status_code=401)
 
-        user_id = subject_id(payload)
-        user = db.query(User).filter(User.id == user_id).first() if user_id is not None else None
+        user = db.query(User).filter(User.id == subject_id(payload)).first()
         if not user:
             return JSONResponse({"detail": "Usuario no encontrado"}, status_code=401)
 
-        if not user.is_confirmed:
-            return JSONResponse(
-                {"detail": "Tu registro está pendiente de confirmación. Revisá tu correo para terminarlo."},
-                status_code=403
-            )
-
-        new_access = create_access_token({"sub": user.id})
+        access_token = create_access_token({"sub": user.id})
         new_refresh = create_refresh_token({"sub": user.id})
 
-        response = JSONResponse({"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"})
-        response.set_cookie("access_token", new_access, httponly=True, secure=False, samesite="lax", max_age=settings.access_token_expire_minutes * 60)
-        response.set_cookie("refresh_token", new_refresh, httponly=True, secure=False, samesite="lax", max_age=settings.refresh_token_expire_days * 24 * 60 * 60)
+        response = JSONResponse({
+            "access_token": access_token,
+            "refresh_token": new_refresh,
+            "token_type": "bearer",
+        })
+        set_session_cookies(response, access_token, new_refresh)
         return response
     finally:
         db.close()
@@ -273,8 +245,8 @@ async def refresh_token(request: Request):
 
 async def logout(request: Request):
     response = JSONResponse({"message": "Sesión cerrada"})
-    response.delete_cookie("access_token", httponly=True, secure=False, samesite="lax")
-    response.delete_cookie("refresh_token", httponly=True, secure=False, samesite="lax")
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
     return response
 
 
@@ -282,13 +254,7 @@ async def me(request: Request):
     db = next(get_db())
     try:
         user = get_current_user(request, db)
-        return JSONResponse({
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "is_confirmed": bool(user.is_confirmed),
-            "created_at": user.created_at.isoformat() if user.created_at else None
-        })
+        return JSONResponse(user_to_dict(user))
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
@@ -320,7 +286,7 @@ async def confirm_email(request: Request):
         if not ok:
             return JSONResponse({"detail": message}, status_code=400)
 
-        # Registro terminado: se crea la sesión
+        # Registro terminado: se crea la sesión.
         access_token = create_access_token({"sub": user.id})
         refresh_token = create_refresh_token({"sub": user.id})
 
@@ -329,16 +295,9 @@ async def confirm_email(request: Request):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "name": user.name,
-                "is_confirmed": True,
-                "created_at": user.created_at.isoformat() if user.created_at else None
-            }
+            "user": user_to_dict(user),
         })
-        response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="lax", max_age=settings.access_token_expire_minutes * 60)
-        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="lax", max_age=settings.refresh_token_expire_days * 24 * 60 * 60)
+        set_session_cookies(response, access_token, refresh_token)
         return response
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
@@ -367,7 +326,7 @@ async def resend_confirmation(request: Request):
         if wait > 0:
             return JSONResponse(
                 {"detail": f"Esperá {wait} segundos antes de pedir otro código"},
-                status_code=429
+                status_code=429,
             )
 
         code = confirmation_service.issue_code(user, db)
@@ -379,8 +338,8 @@ async def resend_confirmation(request: Request):
                 "sent": sent,
                 "destiny": user.email,
                 "expires_in_minutes": settings.confirmation_code_expire_minutes,
-                "resend_cooldown_seconds": settings.confirmation_resend_cooldown_seconds
-            }
+                "resend_cooldown_seconds": settings.confirmation_resend_cooldown_seconds,
+            },
         }
         return JSONResponse(body, status_code=200 if sent else 502)
     except HTTPException as e:
@@ -390,38 +349,156 @@ async def resend_confirmation(request: Request):
 
 
 # ==========================================
-# Wall routes
+# Public
 # ==========================================
 
-def wall_to_dict(wall: Wall, owner_name: str = None, strokes_count: int = None) -> dict:
+async def health(request: Request):
+    return JSONResponse({"status": "ok"})
+
+
+async def get_stats(request: Request):
+    """Contador público de personas registradas (prueba social del home)."""
+    db = next(get_db())
+    try:
+        members = db.query(func.count(User.id)).scalar() or 0
+        return JSONResponse({"members": members})
+    finally:
+        db.close()
+
+
+# ==========================================
+# Walls
+# ==========================================
+
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+_MAX_STROKES = 5000
+_MAX_STROKES_PER_SIGNATURE = 60
+_MAX_POINTS_PER_STROKE = 20000
+_MAX_SIGNER_NAME = 60
+
+
+def _wall_to_dict(wall: Wall, *, strokes=None, strokes_count=None) -> dict:
     data = {
         "id": wall.id,
-        "owner_id": wall.owner_id,
         "title": wall.title,
         "slug": wall.slug,
         "background_color": wall.background_color,
-        "is_public": wall.is_public,
+        "is_public": bool(wall.is_public),
         "created_at": wall.created_at.isoformat() if wall.created_at else None,
         "updated_at": wall.updated_at.isoformat() if wall.updated_at else None,
-        "owner_name": owner_name
     }
     if strokes_count is not None:
         data["strokes_count"] = strokes_count
+    if strokes is not None:
+        data["strokes"] = [_stroke_to_dict(stroke) for stroke in strokes]
     return data
 
 
-def stroke_to_dict(stroke: Stroke) -> dict:
+def _stroke_to_dict(stroke: Stroke) -> dict:
     return {
-        "id": stroke.id,
-        "wall_id": stroke.wall_id,
-        "author_id": stroke.author_id,
-        "author_name": stroke.author_name,
-        "tool": stroke.tool.value if hasattr(stroke.tool, 'value') else stroke.tool,
+        "tool": stroke.tool,
         "color": stroke.color,
         "width": stroke.width,
-        "points": stroke.points,
-        "created_at": stroke.created_at.isoformat() if stroke.created_at else None
+        "points": json.loads(stroke.points or "[]"),
+        "signer_name": stroke.signer_name or None,
     }
+
+
+def _clean_stroke(item) -> dict | None:
+    """Valida y normaliza un trazo recibido del cliente."""
+    if not isinstance(item, dict):
+        return None
+
+    tool = item.get("tool")
+    if tool not in ("pen", "eraser"):
+        return None
+
+    color = str(item.get("color", "#111111"))
+    if not _HEX_COLOR.match(color):
+        return None
+
+    try:
+        width = int(item.get("width", 4))
+    except (TypeError, ValueError):
+        return None
+    if not 1 <= width <= 100:
+        return None
+
+    points = item.get("points")
+    if not isinstance(points, list) or len(points) < 2 or len(points) % 2 != 0:
+        return None
+    if len(points) > _MAX_POINTS_PER_STROKE:
+        return None
+    try:
+        points = [round(float(value), 2) for value in points]
+    except (TypeError, ValueError):
+        return None
+
+    # Opcional: lo mandan las firmas de invitados y el guardado del dueño
+    # reenvía los nombres para no perderlos al reemplazar la lista.
+    signer_name = item.get("signer_name")
+    if signer_name is not None:
+        signer_name = str(signer_name).strip()[:_MAX_SIGNER_NAME] or None
+
+    return {
+        "tool": tool,
+        "color": color,
+        "width": width,
+        "points": points,
+        "signer_name": signer_name,
+    }
+
+
+def _generate_slug(db: Session) -> str:
+    while True:
+        slug = secrets.token_hex(4)
+        if not db.query(Wall.id).filter(Wall.slug == slug).first():
+            return slug
+
+
+def _owned_wall(db: Session, user: User, wall_id) -> Wall | None:
+    try:
+        wall_id = int(wall_id)
+    except (TypeError, ValueError):
+        return None
+    return db.query(Wall).filter(Wall.id == wall_id, Wall.owner_id == user.id).first()
+
+
+def _wall_strokes(db: Session, wall_id: int):
+    return (
+        db.query(Stroke)
+        .filter(Stroke.wall_id == wall_id)
+        .order_by(Stroke.id)
+        .all()
+    )
+
+
+async def list_walls(request: Request):
+    db = next(get_db())
+    try:
+        user = get_current_user(request, db)
+        walls = (
+            db.query(Wall)
+            .filter(Wall.owner_id == user.id)
+            .order_by(Wall.created_at.desc(), Wall.id.desc())
+            .all()
+        )
+        counts = dict(
+            db.query(Stroke.wall_id, func.count(Stroke.id))
+            .filter(Stroke.wall_id.in_([wall.id for wall in walls]))
+            .group_by(Stroke.wall_id)
+            .all()
+        ) if walls else {}
+        return JSONResponse({
+            "walls": [
+                _wall_to_dict(wall, strokes_count=counts.get(wall.id, 0))
+                for wall in walls
+            ]
+        })
+    except HTTPException as e:
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+    finally:
+        db.close()
 
 
 async def create_wall(request: Request):
@@ -430,54 +507,27 @@ async def create_wall(request: Request):
         user = get_current_user(request, db)
         data = await request.json()
 
-        title = data.get("title", "").strip()
-        background_color = data.get("background_color", "#ffffff")
-        is_public = data.get("is_public", True)
+        title = str(data.get("title", "")).strip()
+        color = str(data.get("background_color", "#ffffff")).strip()
+        is_public = bool(data.get("is_public", True))
 
-        if not title:
-            return JSONResponse({"detail": "Título requerido"}, status_code=400)
-        if not validate_hex_color(background_color):
-            return JSONResponse({"detail": "Color inválido"}, status_code=400)
-
-        slug = generate_slug()
-        while db.query(Wall).filter(Wall.slug == slug).first():
-            slug = generate_slug()
+        if not title or len(title) > 100:
+            return JSONResponse({"detail": "Poné un nombre de hasta 100 caracteres"}, status_code=400)
+        if not _HEX_COLOR.match(color):
+            return JSONResponse({"detail": "Color de lienzo inválido"}, status_code=400)
 
         wall = Wall(
             owner_id=user.id,
             title=title,
-            slug=slug,
-            background_color=background_color,
-            is_public=is_public
+            slug=_generate_slug(db),
+            background_color=color,
+            is_public=is_public,
         )
         db.add(wall)
         db.commit()
         db.refresh(wall)
 
-        return JSONResponse(wall_to_dict(wall, user.name), status_code=201)
-    except HTTPException as e:
-        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
-    finally:
-        db.close()
-
-
-async def list_walls(request: Request):
-    db = next(get_db())
-    try:
-        user = get_current_user(request, db)
-        walls = db.query(Wall).filter(Wall.owner_id == user.id).order_by(Wall.created_at.desc()).all()
-        counts = {}
-        if walls:
-            rows = (
-                db.query(Stroke.wall_id, func.count(Stroke.id))
-                .filter(Stroke.wall_id.in_([w.id for w in walls]))
-                .group_by(Stroke.wall_id)
-                .all()
-            )
-            counts = {row[0]: row[1] for row in rows}
-        return JSONResponse({"walls": [
-            wall_to_dict(w, user.name, counts.get(w.id, 0)) for w in walls
-        ]})
+        return JSONResponse(_wall_to_dict(wall, strokes=[], strokes_count=0), status_code=201)
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
@@ -487,34 +537,13 @@ async def list_walls(request: Request):
 async def get_wall(request: Request):
     db = next(get_db())
     try:
-        wall_id = int(request.path_params["wall_id"])
-        user = get_optional_user(request, db)
-
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
+        user = get_current_user(request, db)
+        wall = _owned_wall(db, user, request.path_params.get("wall_id"))
         if not wall:
             return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        if not wall.is_public and (not user or wall.owner_id != user.id):
-            return JSONResponse({"detail": "No tienes acceso a este muro"}, status_code=403)
-
-        count = db.query(func.count(Stroke.id)).filter(Stroke.wall_id == wall.id).scalar() or 0
-        return JSONResponse(wall_to_dict(wall, wall.owner.name, count))
-    finally:
-        db.close()
-
-
-async def get_wall_by_slug(request: Request):
-    db = next(get_db())
-    try:
-        slug = request.path_params["slug"]
-        wall = db.query(Wall).filter(Wall.slug == slug).first()
-        if not wall:
-            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        if not wall.is_public:
-            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        return JSONResponse(wall_to_dict(wall, wall.owner.name))
+        return JSONResponse(_wall_to_dict(wall, strokes=_wall_strokes(db, wall.id)))
+    except HTTPException as e:
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
         db.close()
 
@@ -523,54 +552,32 @@ async def update_wall(request: Request):
     db = next(get_db())
     try:
         user = get_current_user(request, db)
-        wall_id = int(request.path_params["wall_id"])
+        wall = _owned_wall(db, user, request.path_params.get("wall_id"))
+        if not wall:
+            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
+
         data = await request.json()
 
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
-        if not wall:
-            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        if wall.owner_id != user.id:
-            return JSONResponse({"detail": "Solo el propietario puede modificar el muro"}, status_code=403)
-
         if "title" in data:
-            title = data["title"].strip()
-            if not title:
-                return JSONResponse({"detail": "Título requerido"}, status_code=400)
+            title = str(data.get("title", "")).strip()
+            if not title or len(title) > 100:
+                return JSONResponse({"detail": "Poné un nombre de hasta 100 caracteres"}, status_code=400)
             wall.title = title
+
         if "background_color" in data:
-            if not validate_hex_color(data["background_color"]):
-                return JSONResponse({"detail": "Color inválido"}, status_code=400)
-            wall.background_color = data["background_color"]
+            color = str(data.get("background_color", "")).strip()
+            if not _HEX_COLOR.match(color):
+                return JSONResponse({"detail": "Color de lienzo inválido"}, status_code=400)
+            wall.background_color = color
+
         if "is_public" in data:
-            wall.is_public = bool(data["is_public"])
+            wall.is_public = bool(data.get("is_public"))
 
         db.commit()
         db.refresh(wall)
-        return JSONResponse(wall_to_dict(wall, user.name))
-    except HTTPException as e:
-        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
-    finally:
-        db.close()
-
-
-async def reset_wall(request: Request):
-    db = next(get_db())
-    try:
-        user = get_current_user(request, db)
-        wall_id = int(request.path_params["wall_id"])
-
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
-        if not wall:
-            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        if wall.owner_id != user.id:
-            return JSONResponse({"detail": "Solo el propietario puede resetear el muro"}, status_code=403)
-
-        db.query(Stroke).filter(Stroke.wall_id == wall_id).delete()
-        db.commit()
-        db.refresh(wall)
-        return JSONResponse(wall_to_dict(wall, user.name))
+        return JSONResponse(_wall_to_dict(
+            wall, strokes_count=len(_wall_strokes(db, wall.id))
+        ))
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
@@ -581,292 +588,141 @@ async def delete_wall(request: Request):
     db = next(get_db())
     try:
         user = get_current_user(request, db)
-        wall_id = int(request.path_params["wall_id"])
-
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
+        wall = _owned_wall(db, user, request.path_params.get("wall_id"))
         if not wall:
             return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
 
-        if wall.owner_id != user.id:
-            return JSONResponse({"detail": "Solo el propietario puede eliminar el muro"}, status_code=403)
-
+        db.query(Stroke).filter(Stroke.wall_id == wall.id).delete()
         db.delete(wall)
         db.commit()
-        return Response(status_code=204)
+        return JSONResponse({"message": "Muro eliminado"})
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
         db.close()
 
 
-async def create_stroke(request: Request):
-    db = next(get_db())
-    try:
-        wall_id = int(request.path_params["wall_id"])
-        user = get_optional_user(request, db)
-        data = await request.json()
+async def save_strokes(request: Request):
+    """Reemplaza todos los trazos del muro por los que llegan en el cuerpo.
 
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
-        if not wall:
-            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        if not wall.is_public and (not user or wall.owner_id != user.id):
-            return JSONResponse({"detail": "No tienes permiso para dibujar en este muro"}, status_code=403)
-
-        tool = data.get("tool", "pen")
-        color = data.get("color", "#000000")
-        width = data.get("width", 2)
-        points = data.get("points", [])
-        author_name = data.get("author_name", "Anónimo")
-
-        if not validate_hex_color(color):
-            return JSONResponse({"detail": "Color inválido"}, status_code=400)
-        if not isinstance(points, list):
-            return JSONResponse({"detail": "Puntos inválidos"}, status_code=400)
-
-        stroke = Stroke(
-            wall_id=wall_id,
-            author_id=user.id if user else None,
-            author_name=author_name,
-            tool=tool,
-            color=color,
-            width=width,
-            points=points
-        )
-        db.add(stroke)
-        db.commit()
-        db.refresh(stroke)
-        record_signature(request, wall, user, db)
-
-        return JSONResponse(stroke_to_dict(stroke), status_code=201)
-    except HTTPException as e:
-        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
-    finally:
-        db.close()
-
-
-async def list_strokes(request: Request):
-    db = next(get_db())
-    try:
-        wall_id = int(request.path_params["wall_id"])
-        user = get_optional_user(request, db)
-
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
-        if not wall:
-            return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
-
-        if not wall.is_public and (not user or wall.owner_id != user.id):
-            return JSONResponse({"detail": "No tienes acceso a este muro"}, status_code=403)
-
-        strokes = db.query(Stroke).filter(Stroke.wall_id == wall_id).order_by(Stroke.created_at.asc()).all()
-        return JSONResponse({"strokes": [stroke_to_dict(s) for s in strokes]})
-    finally:
-        db.close()
-
-
-async def delete_stroke(request: Request):
+    El cliente manda la lista completa, así deshacer, borrar todo y la goma
+    quedan consistentes sin endpoints extra.
+    """
     db = next(get_db())
     try:
         user = get_current_user(request, db)
-        wall_id = int(request.path_params["wall_id"])
-        stroke_id = int(request.path_params["stroke_id"])
-
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
+        wall = _owned_wall(db, user, request.path_params.get("wall_id"))
         if not wall:
             return JSONResponse({"detail": "Muro no encontrado"}, status_code=404)
 
-        if wall.owner_id != user.id:
-            return JSONResponse({"detail": "Solo el propietario puede borrar trazos"}, status_code=403)
+        data = await request.json()
+        strokes = data.get("strokes")
+        if not isinstance(strokes, list) or len(strokes) > _MAX_STROKES:
+            return JSONResponse({"detail": "Lista de trazos inválida"}, status_code=400)
 
-        stroke = db.query(Stroke).filter(Stroke.id == stroke_id, Stroke.wall_id == wall_id).first()
-        if not stroke:
-            return JSONResponse({"detail": "Trazo no encontrado"}, status_code=404)
+        cleaned = []
+        for item in strokes:
+            stroke = _clean_stroke(item)
+            if stroke is None:
+                return JSONResponse({"detail": "Hay un trazo inválido"}, status_code=400)
+            cleaned.append(stroke)
 
-        db.delete(stroke)
+        db.query(Stroke).filter(Stroke.wall_id == wall.id).delete()
+        for stroke in cleaned:
+            db.add(Stroke(
+                wall_id=wall.id,
+                tool=stroke["tool"],
+                color=stroke["color"],
+                width=stroke["width"],
+                points=json.dumps(stroke["points"]),
+                signer_name=stroke["signer_name"],
+            ))
         db.commit()
-        return Response(status_code=204)
+
+        return JSONResponse({"strokes_count": len(cleaned)})
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
     finally:
         db.close()
 
 
-# ==========================================
-# WebSocket
-# ==========================================
-
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[int, List[WebSocket]] = {}
-        self.user_info: Dict[WebSocket, dict] = {}
-
-    async def connect(self, websocket: WebSocket, wall_id: int, user_data: dict):
-        await websocket.accept()
-        if wall_id not in self.active_connections:
-            self.active_connections[wall_id] = []
-        self.active_connections[wall_id].append(websocket)
-        self.user_info[websocket] = user_data
-
-        await self.broadcast_to_wall(wall_id, {
-            "type": "user_joined",
-            "user_id": user_data.get("user_id"),
-            "user_name": user_data.get("user_name"),
-            "color": user_data.get("color")
-        }, exclude=websocket)
-
-        users = []
-        for ws in self.active_connections[wall_id]:
-            if ws != websocket and ws in self.user_info:
-                info = self.user_info[ws]
-                users.append({
-                    "user_id": info.get("user_id"),
-                    "user_name": info.get("user_name"),
-                    "color": info.get("color")
-                })
-        await websocket.send_text(json.dumps({
-            "type": "users_list",
-            "users": users
-        }))
-
-    def disconnect(self, websocket: WebSocket, wall_id: int):
-        if wall_id in self.active_connections:
-            if websocket in self.active_connections[wall_id]:
-                self.active_connections[wall_id].remove(websocket)
-            if not self.active_connections[wall_id]:
-                del self.active_connections[wall_id]
-
-        user_data = self.user_info.pop(websocket, None)
-        if user_data:
-            import asyncio
-            asyncio.create_task(self.broadcast_to_wall(wall_id, {
-                "type": "user_left",
-                "user_id": user_data.get("user_id"),
-                "user_name": user_data.get("user_name")
-            }))
-
-    async def broadcast_to_wall(self, wall_id: int, message: dict, exclude: WebSocket = None):
-        if wall_id not in self.active_connections:
-            return
-        dead = []
-        for ws in self.active_connections[wall_id]:
-            if ws != exclude:
-                try:
-                    await ws.send_text(json.dumps(message))
-                except Exception:
-                    dead.append(ws)
-        for ws in dead:
-            self.disconnect(ws, wall_id)
-
-
-manager = ConnectionManager()
-
-
-async def get_ws_user(websocket: WebSocket, wall_id: int, token: str = None, db: Session = None) -> dict:
-    user_id = None
-    user_name = "Anónimo"
-    color = "#3b82f6"
-
-    if token:
-        payload = decode_token(token)
-        if payload and payload.get("type") == "access":
-            user = db.query(User).filter(User.id == subject_id(payload)).first()
-            if user:
-                user_id = user.id
-                user_name = user.name
-                colors = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316"]
-                color = colors[user.id % len(colors)]
-
-    return {"user_id": user_id, "user_name": user_name, "color": color}
-
-
-async def websocket_endpoint(websocket: WebSocket):
-    wall_id = int(websocket.path_params["wall_id"])
-    token = websocket.query_params.get("token")
-
+async def get_public_wall(request: Request):
+    """Muro compartible (sin sesión). Los privados no se exponen."""
     db = next(get_db())
     try:
-        wall = db.query(Wall).filter(Wall.id == wall_id).first()
-        if not wall:
-            await websocket.close(code=4004)
-            return
+        slug = request.path_params.get("slug", "")
+        wall = db.query(Wall).filter(Wall.slug == slug).first()
+        if not wall or not wall.is_public:
+            return JSONResponse({"detail": "Este muro no existe o es privado"}, status_code=404)
+
+        owner = db.query(User).filter(User.id == wall.owner_id).first()
+        body = _wall_to_dict(wall, strokes=_wall_strokes(db, wall.id))
+        body["owner_name"] = owner.name if owner else ""
+        return JSONResponse(body)
     finally:
         db.close()
 
+
+async def sign_wall(request: Request):
+    """Firma de un invitado: agrega trazos a un muro público (sin sesión).
+
+    Solo lápiz: los invitados no borran lo que hay. Los trazos se agregan
+    al final en vez de reemplazar la lista, así dos personas pueden firmar
+    sin pisarse y el dueño sigue pudiendo guardar y deshacer lo suyo.
+    """
     db = next(get_db())
     try:
-        user_data = await get_ws_user(websocket, wall_id, token, db)
-    finally:
-        db.close()
+        slug = request.path_params.get("slug", "")
+        wall = db.query(Wall).filter(Wall.slug == slug).first()
+        if not wall or not wall.is_public:
+            return JSONResponse({"detail": "Este muro no existe o es privado"}, status_code=404)
 
-    await manager.connect(websocket, wall_id, user_data)
+        try:
+            data = await request.json()
+        except Exception:
+            data = None
+        if not isinstance(data, dict):
+            return JSONResponse({"detail": "Firma inválida"}, status_code=400)
 
-    try:
-        while True:
-            data = await websocket.receive_text()
-            try:
-                message = json.loads(data)
-                msg_type = message.get("type")
+        name = str(data.get("name", "")).strip()
+        if not 1 <= len(name) <= _MAX_SIGNER_NAME:
+            return JSONResponse(
+                {"detail": f"Escribí tu nombre (hasta {_MAX_SIGNER_NAME} caracteres)"},
+                status_code=400,
+            )
 
-                if msg_type == "stroke":
-                    await manager.broadcast_to_wall(wall_id, {
-                        "type": "stroke",
-                        "data": {
-                            **message.get("data", {}),
-                            "author_id": user_data["user_id"],
-                            "author_name": user_data["user_name"]
-                        }
-                    }, exclude=websocket)
+        strokes = data.get("strokes")
+        if not isinstance(strokes, list) or not strokes:
+            return JSONResponse({"detail": "Dibujá algo antes de firmar"}, status_code=400)
+        if len(strokes) > _MAX_STROKES_PER_SIGNATURE:
+            return JSONResponse({"detail": "Demasiados trazos en una firma"}, status_code=400)
 
-                elif msg_type == "delete":
-                    await manager.broadcast_to_wall(wall_id, {
-                        "type": "delete",
-                        "stroke_id": message.get("stroke_id")
-                    }, exclude=websocket)
+        cleaned = []
+        for item in strokes:
+            stroke = _clean_stroke(item)
+            if stroke is None or stroke["tool"] != "pen":
+                return JSONResponse({"detail": "Hay un trazo inválido"}, status_code=400)
+            cleaned.append(stroke)
 
-                elif msg_type == "reset":
-                    await manager.broadcast_to_wall(wall_id, {
-                        "type": "reset"
-                    }, exclude=websocket)
+        current = db.query(func.count(Stroke.id)).filter(Stroke.wall_id == wall.id).scalar() or 0
+        if current + len(cleaned) > _MAX_STROKES:
+            return JSONResponse({"detail": "Este muro ya no tiene espacio"}, status_code=400)
 
-                elif msg_type == "cursor":
-                    await manager.broadcast_to_wall(wall_id, {
-                        "type": "cursor",
-                        "x": message.get("x"),
-                        "y": message.get("y"),
-                        "user_id": user_data["user_id"],
-                        "user_name": user_data["user_name"],
-                        "color": user_data["color"]
-                    }, exclude=websocket)
+        for stroke in cleaned:
+            db.add(Stroke(
+                wall_id=wall.id,
+                tool=stroke["tool"],
+                color=stroke["color"],
+                width=stroke["width"],
+                points=json.dumps(stroke["points"]),
+                signer_name=name,
+            ))
+        db.commit()
 
-            except json.JSONDecodeError:
-                pass
-
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, wall_id)
-    except Exception:
-        manager.disconnect(websocket, wall_id)
-
-
-# ==========================================
-# Health
-# ==========================================
-
-async def health(request: Request):
-    return JSONResponse({"status": "ok"})
-
-
-async def get_stats(request: Request):
-    db = next(get_db())
-    try:
-        walls_count = db.query(func.count(Wall.id)).scalar() or 0
-        # "Firmas totales" = personas (IPs únicas) que firmaron; el dueño no cuenta
-        strokes_count = db.query(func.count(Signer.id)).scalar() or 0
-        online = sum(len(conns) for conns in manager.active_connections.values())
-        return JSONResponse({
-            "walls": walls_count,
-            "strokes": strokes_count,
-            "online": online
-        })
+        return JSONResponse(
+            {"signer_name": name, "strokes_count": len(cleaned)},
+            status_code=201,
+        )
     finally:
         db.close()
 
@@ -885,7 +741,6 @@ app = Starlette(
         Route("/api/health", health, methods=["GET"]),
         Route("/api/stats", get_stats, methods=["GET"]),
 
-        # Auth
         Route("/api/auth/register", register, methods=["POST"]),
         Route("/api/auth/login", login, methods=["POST"]),
         Route("/api/auth/refresh", refresh_token, methods=["POST"]),
@@ -894,22 +749,14 @@ app = Starlette(
         Route("/api/auth/confirm", confirm_email, methods=["POST"]),
         Route("/api/auth/resend-confirmation", resend_confirmation, methods=["POST"]),
 
-        # Walls
-        Route("/api/walls", create_wall, methods=["POST"]),
         Route("/api/walls", list_walls, methods=["GET"]),
-        Route("/api/walls/{wall_id:int}", get_wall, methods=["GET"]),
-        Route("/api/walls/slug/{slug}", get_wall_by_slug, methods=["GET"]),
-        Route("/api/walls/{wall_id:int}", update_wall, methods=["PATCH"]),
-        Route("/api/walls/{wall_id:int}/reset", reset_wall, methods=["POST"]),
-        Route("/api/walls/{wall_id:int}", delete_wall, methods=["DELETE"]),
-
-        # Strokes
-        Route("/api/walls/{wall_id:int}/strokes", create_stroke, methods=["POST"]),
-        Route("/api/walls/{wall_id:int}/strokes", list_strokes, methods=["GET"]),
-        Route("/api/walls/{wall_id:int}/strokes/{stroke_id:int}", delete_stroke, methods=["DELETE"]),
-
-        # WebSocket
-        WebSocketRoute("/api/ws/walls/{wall_id:int}", websocket_endpoint),
+        Route("/api/walls", create_wall, methods=["POST"]),
+        Route("/api/walls/{wall_id}", get_wall, methods=["GET"]),
+        Route("/api/walls/{wall_id}", update_wall, methods=["PATCH"]),
+        Route("/api/walls/{wall_id}", delete_wall, methods=["DELETE"]),
+        Route("/api/walls/{wall_id}/strokes", save_strokes, methods=["PUT"]),
+        Route("/api/w/{slug}", get_public_wall, methods=["GET"]),
+        Route("/api/w/{slug}/sign", sign_wall, methods=["POST"]),
     ],
     exception_handlers={HTTPException: http_exception_handler},
 )
@@ -921,5 +768,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)

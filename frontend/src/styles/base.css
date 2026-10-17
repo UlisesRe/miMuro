@@ -27,8 +27,8 @@ html {
   scroll-padding-top: calc(var(--header-height) + var(--safe-top) + var(--space-md));
   /* Nothing in this layout is meant to scroll
      sideways. `clip` instead of `hidden` so the
-     sticky wall toolbar keeps working: hidden
-     would turn the page into a scroll container. */
+     sticky header keeps working: hidden would
+     turn the page into a scroll container. */
   overflow-x: clip;
 }
 
@@ -62,7 +62,6 @@ summary {
 
 img,
 svg,
-canvas,
 video {
   display: block;
   max-width: 100%;
@@ -268,7 +267,7 @@ blockquote {
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
-  /* Stop pull-to-refresh fighting the canvas */
+  /* Stop pull-to-refresh fighting the page */
   overscroll-behavior-y: none;
 }
 
@@ -604,7 +603,6 @@ blockquote {
 @media print {
   .header,
   .tabbar,
-  .fab,
   .footer,
   .toast-container {
     display: none !important;
