@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { WALL_SIZE, renderStrokes, pointFromEvent } from './wallCanvas.js'
+import { WALL_SIZE, renderStrokes, renderWallThumbnail, pointFromEvent } from './wallCanvas.js'
 
 // jsdom no implementa canvas 2d, así que se usa un doble
 // que registra las llamadas: alcanza para probar la lógica
@@ -67,6 +67,34 @@ describe('renderStrokes', () => {
 
     expect(ctx.clearRect).toHaveBeenCalledTimes(1)
     expect(ctx.stroke).not.toHaveBeenCalled()
+  })
+})
+
+describe('renderWallThumbnail', () => {
+  it('compone el fondo con los trazos y devuelve un JPEG', () => {
+    const ctx = { ...fakeCtx(), fillRect: vi.fn(), drawImage: vi.fn() }
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(ctx)
+    const toDataURL = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValue('data:image/jpeg;base64,abc')
+
+    try {
+      const url = renderWallThumbnail(
+        [{ tool: 'pen', color: '#111111', width: 4, points: [0, 0, 10, 10] }],
+        '#fff3bf'
+      )
+
+      expect(url).toBe('data:image/jpeg;base64,abc')
+      expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, WALL_SIZE, WALL_SIZE)
+      expect(ctx.drawImage).toHaveBeenCalledTimes(1)
+      expect(ctx.stroke).toHaveBeenCalledTimes(1)
+      expect(toDataURL).toHaveBeenCalledWith('image/jpeg', 0.82)
+    } finally {
+      getContext.mockRestore()
+      toDataURL.mockRestore()
+    }
   })
 })
 

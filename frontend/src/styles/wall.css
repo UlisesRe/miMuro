@@ -22,6 +22,7 @@
 }
 
 .wall-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -45,6 +46,13 @@
   transform: translateY(-2px);
 }
 
+.wall-card__link {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+
 .wall-card__thumb {
   position: relative;
   display: block;
@@ -52,20 +60,98 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
-/* Subtle grid so a blank canvas still reads as a canvas. */
-.wall-card__grid {
+/* La preview es una imagen real del muro (fondo + trazos + firmas). */
+.wall-card__img {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(to right, rgb(0 0 0 / 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(0 0 0 / 0.06) 1px, transparent 1px);
-  background-size: 1.25rem 1.25rem;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .wall-card__badge {
   position: absolute;
+  inset-block-end: var(--space-2xs);
+  inset-inline-start: var(--space-2xs);
+}
+
+/* Menú de 3 puntitos: el panel abre dentro de la tarjeta (que recorta
+   con overflow), por eso los ítems son compactos. */
+.wall-card__menu {
+  position: absolute;
   top: var(--space-2xs);
   inset-inline-end: var(--space-2xs);
+  z-index: var(--z-raised);
+}
+
+.wall-card__dots {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-in-out);
+}
+
+.wall-card__dots:hover {
+  background-color: var(--color-bg-muted);
+}
+
+.wall-card__dots svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.wall-card__panel {
+  position: absolute;
+  top: calc(100% + var(--space-2xs));
+  inset-inline-end: 0;
+  z-index: var(--z-dropdown);
+  min-width: 8.5rem;
+  padding: var(--space-3xs);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.wall-card__menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.25rem;
+  padding-inline: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-in-out),
+    background-color var(--duration-fast) var(--ease-in-out);
+}
+
+.wall-card__menu-item:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg-muted);
+}
+
+.wall-card__menu-item--danger {
+  color: var(--color-error);
+}
+
+.wall-card__menu-item--danger:hover {
+  color: var(--color-error);
+  background-color: var(--color-error-soft);
 }
 
 .wall-card__body {
@@ -137,6 +223,12 @@
   flex-direction: column;
   gap: var(--space-lg);
   padding: var(--space-md) var(--space-lg);
+}
+
+.modal__text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
 }
 
 .modal__footer {

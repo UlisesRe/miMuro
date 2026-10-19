@@ -67,6 +67,25 @@ export function pointFromEvent(canvas, event) {
   }
 }
 
+// Compone el fondo + los trazos en un JPEG chico (la preview de "Mis muros").
+// Misma composición que la descarga: los trazos se dibujan en una capa
+// transparente (así la goma deja pasar el fondo) y encima va el color.
+export function renderWallThumbnail(strokes, background, quality = 0.82) {
+  const layer = document.createElement('canvas')
+  layer.width = WALL_SIZE
+  layer.height = WALL_SIZE
+  renderStrokes(layer.getContext('2d'), strokes)
+
+  const out = document.createElement('canvas')
+  out.width = WALL_SIZE
+  out.height = WALL_SIZE
+  const ctx = out.getContext('2d')
+  ctx.fillStyle = background || '#ffffff'
+  ctx.fillRect(0, 0, WALL_SIZE, WALL_SIZE)
+  ctx.drawImage(layer, 0, 0)
+  return out.toDataURL('image/jpeg', quality)
+}
+
 // Compone el fondo + los trazos en un PNG y lo descarga.
 export function downloadWallPng(sourceCanvas, background, filename) {
   const out = document.createElement('canvas')

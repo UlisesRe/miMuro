@@ -636,6 +636,7 @@ async def save_strokes(request: Request):
                 width=stroke["width"],
                 points=json.dumps(stroke["points"]),
                 signer_name=stroke["signer_name"],
+                author_name=stroke["signer_name"] or user.name,
             ))
         db.commit()
 
@@ -716,6 +717,7 @@ async def sign_wall(request: Request):
                 width=stroke["width"],
                 points=json.dumps(stroke["points"]),
                 signer_name=name,
+                author_name=name,
             ))
         db.commit()
 

@@ -1,18 +1,22 @@
 // ========================================
 // miMuro - Dashboard Page ("Mis muros")
 //
-// Lista los muros del usuario y permite crear uno nuevo
-// eligiendo nombre, color del lienzo y visibilidad.
+// Lista los muros del usuario con una preview JPEG del lienzo
+// (fondo + trazos + firmas). Permite crear y editar un muro
+// (mismo diálogo: nombre, color y visibilidad), reiniciarlo
+// (borra los trazos) o eliminarlo, con confirmación.
 // ========================================
 
 import { api } from '../services/api.js'
 import { whenAuthReady } from '../hooks/useAuth.js'
+import { renderWallThumbnail } from '../utils/wallCanvas.js'
 
 const ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
   brush: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.06 11.9 3.6 6.44A2 2 0 0 1 6.44 3.6l5.46 5.46"></path><path d="m14.5 9.5 5 5a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 1-2.83 0l-5-5"></path><path d="m9 15-3 3-3 3 4-1 3-3"></path></svg>',
-  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"></circle><circle cx="12" cy="12" r="1.9"></circle><circle cx="12" cy="19" r="1.9"></circle></svg>'
 }
 
 const PALETTE = [
@@ -36,6 +40,10 @@ export function DashboardPageComponent() {
 
     showCreate: false,
     creating: false,
+    editingWall: null,
+    openMenuId: null,
+    confirming: null,
+    confirmBusy: false,
     formError: null,
     palette: PALETTE,
     form: { title: '', background_color: '#ffffff', is_public: true },
@@ -62,10 +70,32 @@ export function DashboardPageComponent() {
       try {
         const data = await api.walls.list()
         this.walls = data.walls || []
+        this.loadPreviews()
       } catch (error) {
         this.loadError = error?.message || 'No pudimos cargar tus muros'
       } finally {
         this.loading = false
+      }
+    },
+
+    // La preview de cada tarjeta es la imagen del muro (fondo + trazos +
+    // firmas). El listado no trae trazos, así que se pide cada muro en
+    // paralelo y la tarjeta muestra el color del lienzo hasta que llegue.
+    async loadPreviews() {
+      const targets = this.walls.filter((wall) => (wall.strokes_count || 0) > 0)
+      await Promise.all(targets.map((wall) => this.refreshPreview(wall)))
+    },
+
+    async refreshPreview(wall) {
+      try {
+        if ((wall.strokes_count || 0) === 0) {
+          wall.preview = null
+          return
+        }
+        const data = await api.walls.get(wall.id)
+        wall.preview = renderWallThumbnail(data.strokes || [], wall.background_color)
+      } catch {
+        // Si falla, la tarjeta queda con el color de fondo del lienzo.
       }
     },
 
@@ -76,7 +106,21 @@ export function DashboardPageComponent() {
     },
 
     openCreate() {
+      this.editingWall = null
       this.form = { title: '', background_color: '#ffffff', is_public: true }
+      this.formError = null
+      this.showCreate = true
+      this.$nextTick(() => this.$refs.createTitle?.focus())
+    },
+
+    openEdit(wall) {
+      this.openMenuId = null
+      this.editingWall = wall
+      this.form = {
+        title: wall.title,
+        background_color: wall.background_color,
+        is_public: wall.is_public
+      }
       this.formError = null
       this.showCreate = true
       this.$nextTick(() => this.$refs.createTitle?.focus())
@@ -87,7 +131,16 @@ export function DashboardPageComponent() {
       this.showCreate = false
     },
 
-    async createWall() {
+    get modalTitle() {
+      return this.editingWall ? 'Editar muro' : 'Nuevo muro'
+    },
+
+    get submitLabel() {
+      if (this.creating) return this.editingWall ? 'Guardando...' : 'Creando...'
+      return this.editingWall ? 'Guardar cambios' : 'Crear muro'
+    },
+
+    async saveWall() {
       if (this.creating) return
 
       const title = this.form.title.trim()
@@ -99,22 +152,98 @@ export function DashboardPageComponent() {
       this.creating = true
       this.formError = null
       try {
-        const wall = await api.walls.create({
+        const payload = {
           title,
           background_color: this.form.background_color,
           is_public: this.form.is_public
-        })
+        }
+
+        if (this.editingWall) {
+          const updated = await api.walls.update(this.editingWall.id, payload)
+          this.walls = this.walls.map((w) => (w.id === updated.id ? { ...w, ...updated } : w))
+          this.showCreate = false
+          this.$store.toast.success('Muro actualizado')
+          const saved = this.walls.find((w) => w.id === updated.id)
+          if (saved) this.refreshPreview(saved)
+          return
+        }
+
+        const wall = await api.walls.create(payload)
         this.walls = [wall, ...this.walls]
         this.showCreate = false
         this.$store.toast.success('Muro creado')
         this.$router.navigate(`/dashboard/w/${wall.id}`)
       } catch (error) {
+        const detail =
+          error?.message && error.message !== 'Error de conexión' ? error.message : null
         this.formError =
-          error?.message && error.message !== 'Error de conexión'
-            ? error.message
-            : 'No pudimos crear el muro. Inténtalo de nuevo.'
+          detail ||
+          (this.editingWall
+            ? 'No pudimos guardar los cambios. Inténtalo de nuevo.'
+            : 'No pudimos crear el muro. Inténtalo de nuevo.')
       } finally {
         this.creating = false
+      }
+    },
+
+    toggleMenu(id) {
+      this.openMenuId = this.openMenuId === id ? null : id
+    },
+
+    askReset(wall) {
+      this.openMenuId = null
+      this.confirming = { type: 'reset', wall }
+      this.$nextTick(() => this.$refs.confirmTitle?.focus())
+    },
+
+    askDelete(wall) {
+      this.openMenuId = null
+      this.confirming = { type: 'delete', wall }
+      this.$nextTick(() => this.$refs.confirmTitle?.focus())
+    },
+
+    closeConfirm() {
+      if (this.confirmBusy) return
+      this.confirming = null
+    },
+
+    get confirmTitle() {
+      return this.confirming?.type === 'delete' ? 'Eliminar muro' : 'Reiniciar muro'
+    },
+
+    get confirmMessage() {
+      if (!this.confirming) return ''
+      const name = this.confirming.wall.title
+      return this.confirming.type === 'delete'
+        ? `¿Confirmar eliminar muro (${name})?`
+        : `¿Reiniciar el muro (${name})? Se borran todos los dibujos y firmas.`
+    },
+
+    get confirmLabel() {
+      return this.confirming?.type === 'delete' ? 'Eliminar' : 'Reiniciar'
+    },
+
+    async runConfirm() {
+      if (this.confirmBusy || !this.confirming) return
+      const { type, wall } = this.confirming
+      this.confirmBusy = true
+      try {
+        if (type === 'delete') {
+          await api.walls.remove(wall.id)
+          this.walls = this.walls.filter((w) => w.id !== wall.id)
+          this.$store.toast.success('Muro eliminado')
+        } else {
+          await api.walls.saveStrokes(wall.id, [])
+          this.walls = this.walls.map((w) =>
+            w.id === wall.id ? { ...w, strokes_count: 0, preview: null } : w
+          )
+          this.$store.toast.success('Muro reiniciado')
+        }
+        this.confirming = null
+      } catch (error) {
+        this.$store.toast.error(error?.message || 'No pudimos completar la acción')
+      } finally {
+        this.confirmBusy = false
       }
     },
 
@@ -129,7 +258,7 @@ export function registerDashboardPage(Alpine) {
 }
 
 export const DashboardPageTemplate = `
-<div class="page page--dashboard">
+<div class="page page--dashboard" @keydown.escape.window="openMenuId = null">
   <div class="container">
 
     <header class="page-header">
@@ -172,18 +301,39 @@ export const DashboardPageTemplate = `
     <ul class="wall-grid" x-show="!loading && !loadError && walls.length > 0" x-cloak>
       <template x-for="wall in walls" :key="wall.id">
         <li>
-          <a class="wall-card" :href="'/dashboard/w/' + wall.id" @click.prevent="openWall(wall)">
-            <span class="wall-card__thumb" :style="'background-color:' + wall.background_color">
-              <span class="wall-card__grid" aria-hidden="true"></span>
-              <span class="badge wall-card__badge"
-                    :class="wall.is_public ? 'badge--success' : 'badge--neutral'"
-                    x-text="wall.is_public ? 'Público' : 'Privado'"></span>
-            </span>
-            <span class="wall-card__body">
-              <span class="wall-card__title" x-text="wall.title"></span>
-              <span class="wall-card__meta" x-text="strokeLabel(wall)"></span>
-            </span>
-          </a>
+          <div class="wall-card">
+            <a class="wall-card__link" :href="'/dashboard/w/' + wall.id" @click.prevent="openWall(wall)">
+              <span class="wall-card__thumb" :style="'background-color:' + wall.background_color">
+                <template x-if="wall.preview">
+                  <img class="wall-card__img" :src="wall.preview" :alt="'Vista previa de ' + wall.title">
+                </template>
+                <span class="badge wall-card__badge"
+                      :class="wall.is_public ? 'badge--success' : 'badge--neutral'"
+                      x-text="wall.is_public ? 'Público' : 'Privado'"></span>
+              </span>
+              <span class="wall-card__body">
+                <span class="wall-card__title" x-text="wall.title"></span>
+                <span class="wall-card__meta" x-text="strokeLabel(wall)"></span>
+              </span>
+            </a>
+
+            <div class="wall-card__menu">
+              <button type="button" class="wall-card__dots"
+                      @click.stop="toggleMenu(wall.id)"
+                      :aria-expanded="openMenuId === wall.id ? 'true' : 'false'"
+                      aria-haspopup="menu" aria-label="Opciones del muro">
+                ${ICONS.more}
+              </button>
+              <div class="wall-card__panel" x-show="openMenuId === wall.id" x-cloak
+                   @click.outside="openMenuId = null"
+                   x-transition.origin.top.right
+                   role="menu" aria-label="Opciones del muro">
+                <button type="button" class="wall-card__menu-item" role="menuitem" @click="openEdit(wall)">Editar</button>
+                <button type="button" class="wall-card__menu-item" role="menuitem" @click="askReset(wall)">Reiniciar</button>
+                <button type="button" class="wall-card__menu-item wall-card__menu-item--danger" role="menuitem" @click="askDelete(wall)">Eliminar</button>
+              </div>
+            </div>
+          </div>
         </li>
       </template>
     </ul>
@@ -194,9 +344,9 @@ export const DashboardPageTemplate = `
     <div class="modal__backdrop" @click="closeCreate()"></div>
 
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="create-wall-title">
-      <form @submit.prevent="createWall()">
+      <form @submit.prevent="saveWall()">
         <header class="modal__header">
-          <h2 class="modal__title" id="create-wall-title" tabindex="-1" x-ref="createTitle">Nuevo muro</h2>
+          <h2 class="modal__title" id="create-wall-title" tabindex="-1" x-ref="createTitle" x-text="modalTitle"></h2>
           <button type="button" class="btn btn--icon btn--ghost" @click="closeCreate()" aria-label="Cerrar">
             ${ICONS.close}
           </button>
@@ -255,10 +405,39 @@ export const DashboardPageTemplate = `
           <button type="submit" class="btn btn--primary"
                   :disabled="creating" :data-busy="creating ? 'true' : 'false'">
             <span class="spinner" x-show="creating" x-cloak aria-hidden="true"></span>
-            <span x-text="creating ? 'Creando...' : 'Crear muro'"></span>
+            <span x-text="submitLabel"></span>
           </button>
         </footer>
       </form>
+    </div>
+  </div>
+
+  <div class="modal" x-show="confirming" x-cloak @keydown.escape.window="closeConfirm()">
+    <div class="modal__backdrop" @click="closeConfirm()"></div>
+
+    <div class="modal__panel" role="alertdialog" aria-modal="true" aria-labelledby="confirm-wall-title">
+      <header class="modal__header">
+        <h2 class="modal__title" id="confirm-wall-title" tabindex="-1" x-ref="confirmTitle" x-text="confirmTitle"></h2>
+        <button type="button" class="btn btn--icon btn--ghost" @click="closeConfirm()" aria-label="Cerrar">
+          ${ICONS.close}
+        </button>
+      </header>
+
+      <div class="modal__body">
+        <p class="modal__text" x-text="confirmMessage"></p>
+      </div>
+
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--ghost" @click="closeConfirm()" :disabled="confirmBusy">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn--danger"
+                @click="runConfirm()" :disabled="confirmBusy"
+                :data-busy="confirmBusy ? 'true' : 'false'">
+          <span class="spinner" x-show="confirmBusy" x-cloak aria-hidden="true"></span>
+          <span x-text="confirmBusy ? 'Un momento...' : confirmLabel"></span>
+        </button>
+      </footer>
     </div>
   </div>
 </div>

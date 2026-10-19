@@ -58,4 +58,9 @@ class Stroke(Base):
     points = Column(Text, nullable=False, default="[]")
     # Vacío = trazo del dueño. Con nombre = firma de un invitado.
     signer_name = Column(String(60), nullable=True)
+    # Columna legada de la versión anterior: en `mimuro.db` es NOT NULL, así
+    # que hay que mapearla y llenarla aunque el código ya no la lea (si no,
+    # el INSERT falla con "NOT NULL constraint failed: strokes.author_name").
+    # Los tests no la ven porque conftest crea una DB fresca con create_all().
+    author_name = Column(String(100), nullable=False, default="")
     created_at = Column(DateTime(timezone=True), default=_now)
