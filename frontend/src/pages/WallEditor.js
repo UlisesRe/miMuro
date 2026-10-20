@@ -17,7 +17,10 @@ import {
   renderStrokes,
   drawSegment,
   pointFromEvent,
-  downloadWallPng
+  downloadWallPng,
+  clampZoom,
+  distance,
+  midPoint
 } from '../utils/wallCanvas.js'
 
 const ICONS = {
@@ -65,6 +68,14 @@ export function WallEditorPageComponent() {
     zoom: 1,
     panX: 0,
     panY: 0,
+
+    // Punteros activos, para el gesto de dos dedos (zoom táctil): funciona
+    // igual en los dos modos, así el móvil puede acercar también al editar.
+    pointers: {},
+    pinching: false,
+    pinchStartDistance: 1,
+    pinchStartZoom: 1,
+    pinchWorld: { x: 0, y: 0 },
 
     dirty: false,
     saving: false,
@@ -165,14 +176,22 @@ export function WallEditorPageComponent() {
     onPointerDown(event) {
       if (this.loading || this.loadError) return
 
+      this.trackPointer(event)
+      event.currentTarget.setPointerCapture(event.pointerId)
+
+      const count = this.pointerList().length
+      if (count === 2) {
+        this.beginPinch()
+        return
+      }
+      if (count > 2) return
+
       if (this.mode !== 'edit') {
         this.panning = true
         this.panOrigin = { x: event.clientX - this.panX, y: event.clientY - this.panY }
-        event.currentTarget.setPointerCapture(event.pointerId)
         return
       }
 
-      event.currentTarget.setPointerCapture(event.pointerId)
       const point = pointFromEvent(this.$refs.canvas, event)
       const eraser = this.tool === 'eraser'
       this.strokes.push({
@@ -190,6 +209,14 @@ export function WallEditorPageComponent() {
     },
 
     onPointerMove(event) {
+      if (!this.pointers[event.pointerId]) return
+      this.trackPointer(event)
+
+      if (this.pointerList().length >= 2) {
+        this.updatePinch()
+        return
+      }
+
       if (this.mode !== 'edit') {
         if (!this.panning) return
         this.panX = event.clientX - this.panOrigin.x
@@ -209,9 +236,69 @@ export function WallEditorPageComponent() {
       drawSegment(ctx, stroke)
     },
 
-    onPointerUp() {
+    onPointerUp(event) {
+      if (event && event.pointerId !== undefined) delete this.pointers[event.pointerId]
+      if (this.pinching && this.pointerList().length < 2) this.pinching = false
       this.drawing = false
       this.panning = false
+    },
+
+    // --------------------------------------
+    // Gesto de dos dedos (zoom y desplazamiento táctil)
+
+    pointerList() {
+      return Object.keys(this.pointers).map((id) => this.pointers[id])
+    },
+
+    trackPointer(event) {
+      this.pointers[event.pointerId] = { x: event.clientX, y: event.clientY }
+    },
+
+    stageCenter() {
+      const stage = this.$refs.stage
+      if (!stage) return { x: 0, y: 0 }
+      const rect = stage.getBoundingClientRect()
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    },
+
+    beginPinch() {
+      const [a, b] = this.pointerList()
+      if (!a || !b) return
+
+      this.pinching = true
+      // Si el primer dedo ya había empezado un trazo, se descarta: apoyar
+      // un segundo dedo no debe dejar una raya suelta en el muro.
+      if (this.drawing && this.mode === 'edit' && this.strokes.length) {
+        this.strokes.pop()
+        this.redraw()
+      }
+      this.drawing = false
+      this.panning = false
+
+      this.pinchStartDistance = Math.max(1, distance(a, b))
+      this.pinchStartZoom = this.zoom
+
+      const mid = midPoint(a, b)
+      const center = this.stageCenter()
+      this.pinchWorld = {
+        x: (mid.x - center.x - this.panX) / this.zoom,
+        y: (mid.y - center.y - this.panY) / this.zoom
+      }
+    },
+
+    updatePinch() {
+      const [a, b] = this.pointerList()
+      if (!a || !b) return
+
+      const nextZoom = clampZoom(
+        this.pinchStartZoom * (distance(a, b) / this.pinchStartDistance)
+      )
+      const mid = midPoint(a, b)
+      const center = this.stageCenter()
+
+      this.zoom = nextZoom
+      this.panX = mid.x - center.x - this.pinchWorld.x * nextZoom
+      this.panY = mid.y - center.y - this.pinchWorld.y * nextZoom
     },
 
     undo() {
@@ -247,7 +334,7 @@ export function WallEditorPageComponent() {
     // Zoom y descarga
 
     setZoom(value) {
-      this.zoom = Math.min(4, Math.max(1, Math.round(value * 100) / 100))
+      this.zoom = clampZoom(value)
     },
 
     zoomIn() {
@@ -408,25 +495,28 @@ export const WallEditorTemplate = `
         </div>
       </div>
 
-      <div class="editor__stage" :class="{ 'editor__stage--view': mode === 'view' }"
-           @wheel="onWheel($event)">
+      <div class="editor__stage" x-ref="stage"
+           :class="{ 'editor__stage--view': mode === 'view' }"
+           @wheel="onWheel($event)" @contextmenu.prevent>
         <div class="editor__canvas-wrap" :style="canvasTransform">
           <canvas class="editor__canvas" x-ref="canvas" x-init="redraw()"
                   :width="wallSize" :height="wallSize"
                   :style="'background-color:' + backgroundColor"
                   @pointerdown="onPointerDown($event)"
                   @pointermove="onPointerMove($event)"
-                  @pointerup="onPointerUp()"
-                  @pointercancel="onPointerUp()"></canvas>
+                  @pointerup="onPointerUp($event)"
+                  @pointercancel="onPointerUp($event)"></canvas>
         </div>
       </div>
 
       <p class="editor__hint" x-show="mode === 'edit'">
         <span x-show="dirty" x-cloak>Tenés cambios sin guardar.</span>
         <span x-show="!dirty" x-cloak>Todo guardado.</span>
+        En el móvil podés hacer zoom y mover el lienzo con dos dedos.
       </p>
       <p class="editor__hint" x-show="mode === 'view'" x-cloak>
         Arrastrá para mover el lienzo. Usá la rueda o los botones para acercar.
+        En el móvil, dos dedos para el zoom.
       </p>
       <p class="editor__hint" x-show="mode === 'edit' && signerNames.length" x-cloak>
         Este muro ya tiene firmas de invitados. "Borrar todo" también las borra.

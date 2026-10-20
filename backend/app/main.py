@@ -88,20 +88,26 @@ def user_to_dict(user: User) -> dict:
 
 
 def set_session_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    # En local (http) la cookie va sin Secure y SameSite=lax; en producción
+    # (HTTPS, frontend en otro dominio) tiene que ser Secure + SameSite=None,
+    # si no el navegador no la manda en las llamadas cross-site.
+    secure = not settings.debug
+    samesite = "none" if secure else "lax"
+
     response.set_cookie(
         "access_token",
         access_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=secure,
+        samesite=samesite,
         max_age=settings.access_token_expire_minutes * 60,
     )
     response.set_cookie(
         "refresh_token",
         refresh_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=secure,
+        samesite=samesite,
         max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
     )
 
@@ -668,8 +674,10 @@ async def sign_wall(request: Request):
     """Firma de un invitado: agrega trazos a un muro público (sin sesión).
 
     Solo lápiz: los invitados no borran lo que hay. Los trazos se agregan
-    al final en vez de reemplazar la lista, así dos personas pueden firmar
-    sin pisarse y el dueño sigue pudiendo guardar y deshacer lo suyo.
+    al final de la lista (no la reemplazan), así dos personas pueden firmar
+    sin pisarse y el dueño sigue pudiendo guardar y deshacer lo suyo. La
+    página pública los ordena al revés al dibujar, para que la firma nueva
+    quede por debajo de las anteriores.
     """
     db = next(get_db())
     try:
@@ -766,6 +774,7 @@ app = Starlette(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

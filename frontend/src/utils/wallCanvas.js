@@ -9,6 +9,86 @@
 
 export const WALL_SIZE = 1000
 
+// Zoom del lienzo: se comparte entre el editor del dueño y la página
+// pública para que los dedos (pinch) y los botones usen el mismo rango.
+export const MIN_ZOOM = 1
+export const MAX_ZOOM = 4
+
+export function clampZoom(value) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 100) / 100))
+}
+
+// Distancia y punto medio entre dos posiciones (coordenadas de pantalla),
+// usados por el gesto de dos dedos.
+export function distance(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+export function midPoint(a, b) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
+
+// Borra puntos de `strokes` que caigan dentro del radio de (x, y). Cuando el
+// borrado parte un trazo por la mitad, devuelve las dos mitades como trazos
+// aparte. Es una operación sobre datos: se aplica solo al borrador del
+// invitado, así la goma nunca toca las firmas de otras sesiones.
+export function erasePoints(strokes, x, y, radius) {
+  const r2 = radius * radius
+  const result = []
+  let changed = false
+
+  for (const stroke of strokes || []) {
+    const points = stroke.points || []
+    const runs = []
+    let run = []
+    let removed = false
+
+    const flush = () => {
+      if (run.length >= 2) runs.push(run)
+      run = []
+    }
+
+    for (let i = 0; i < points.length; i += 2) {
+      const dx = points[i] - x
+      const dy = points[i + 1] - y
+      if (dx * dx + dy * dy <= r2) {
+        removed = true
+        changed = true
+        flush()
+      } else {
+        run.push(points[i], points[i + 1])
+      }
+    }
+    flush()
+
+    // Los trazos que la goma no tocó se reutilizan tal cual: importa para
+    // que un arrastre largo no recree la firma entera en cada movimiento.
+    if (!removed) {
+      result.push(stroke)
+      continue
+    }
+    for (const runPoints of runs) result.push({ ...stroke, points: runPoints })
+  }
+
+  // Si la goma no borró nada, devolvemos la misma lista: quien la use puede
+  // evitar un repintado completo.
+  return changed ? result : strokes
+}
+
+// Aplica la goma a lo largo del tramo `from -> to` muestreando puntos, para
+// que un arrastre rápido no deje huecos sin borrar.
+export function eraseAlong(strokes, from, to, radius) {
+  const steps = Math.max(1, Math.ceil(distance(from, to) / Math.max(1, radius / 2)))
+  let current = strokes
+  for (let step = 0; step <= steps; step += 1) {
+    const t = step / steps
+    const x = from.x + (to.x - from.x) * t
+    const y = from.y + (to.y - from.y) * t
+    current = erasePoints(current, x, y, radius)
+  }
+  return current
+}
+
 // Aplica el estilo del trazo y dibuja los puntos recibidos.
 function strokePath(ctx, stroke, from, to) {
   const points = stroke.points || []

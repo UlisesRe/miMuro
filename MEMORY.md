@@ -7,17 +7,24 @@ El plan del muro paso a paso vive acá → sección **Plan: reconstruir el muro*
 Red social joven (público Instagram): cada persona tiene un "muro" y otras entran por un link a
 firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitados que firman** por link.
 
-## Estado (2026-10-16)
+## Estado (2026-10-19)
 - **Backend**: `User`, `Wall` y `Stroke` + endpoints de muros. Auth, `/api/stats`.
-- **Frontend**: landing, login/registro, legales. `/dashboard` = **"Mis muros"** (grid + botón
-  "Nuevo muro" con modal: nombre, color del lienzo, público/privado). `/dashboard/w/:id` = muro del
+- **Frontend**: landing, login/registro, legales. `/dashboard` = **"Mis muros"**: cada tarjeta muestra
+  una **preview JPEG real** del lienzo (fondo + trazos + firmas, sin cuadrícula), el modal de
+  crear/editar (nombre, color, público/privado) y un **menú de 3 puntitos** por tarjeta con
+  Editar / Reiniciar (borra los trazos) / Eliminar (con confirmación). `/dashboard/w/:id` = muro del
   dueño con dos modos: **Editar** (lápiz/goma, grosor, deshacer, borrar todo, guardar) y
   **Ver** (zoom con rueda/botones, desplazar arrastrando, descargar PNG).
-- `/w/:slug` = **muro público** (`pages/PublicWall.js`, sin sesión): se ve en solo lectura con zoom,
-  desplazamiento y descarga, y el invitado **firma** (nombre + lápiz + grosor). Respeta
-  público/privado: un muro privado da "no existe o es privado".
-- El dueño, en su editor, tiene "Copiar link para firmar" y ve la lista de quiénes firmaron.
-- Verificación: `npm run build` (28 módulos) · `npm test -- --run` 10/10 · `python -m pytest` 26/26.
+- `/w/:slug` = **muro público** (`pages/PublicWall.js`, sin sesión): header y footer del shell (los
+  mismos del inicio), y el invitado **siempre está firmando** (no hay botón "firmar muro"): al entrar
+  un modal le pide el **nombre** (se recuerda en `localStorage`), dibuja con lápiz o **goma** (la goma
+  solo borra su propio borrador, nunca las firmas de otras sesiones) y botón **Guardar firma**. No hay
+  descarga PNG. Respeta público/privado: un muro privado da "no existe o es privado".
+- El dueño, en su editor, tiene "Copiar link para firmar" y ve la lista de quiénes firmaron. En el
+  dashboard, el menú de 3 puntitos de cada tarjeta tiene **Compartir** (modal tipo hoja social:
+  Copiar link, Instagram Stories, Facebook, WhatsApp, X, Telegram).
+- **Zoom táctil (pinch) en todos los lienzos**, también en los editables: dos dedos para acercar/mover.
+- Verificación: `npm run build` (28 módulos) · `npm test -- --run` 17/17 · `python -m pytest` 26/26.
 - Pendiente: **push** a `origin/main` (el commit ya está hecho).
 
 ## Arquitectura
@@ -43,16 +50,19 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
    deshacer, borrar todo (con confirmación en la barra), guardar. Motor en `utils/wallCanvas.js`.
 4. **Ver** — mismo lienzo sin dibujar: zoom (rueda + botones, límite 1×–4× con `transform: scale`),
    pan arrastrando y **descargar PNG** (`canvas.toBlob` sobre un canvas que compone el fondo).
-5. **Invitados por `/w/:slug`** — `pages/PublicWall.js` (ya no es cascarón): mismo visor que "Ver"
-   (zoom, pan, descargar) + **firmar**: nombre, lápiz y grosor. La firma se envía con
-   `POST /api/w/{slug}/sign` y se guarda con `signer_name`. El dueño copia el link desde su editor
-   ("Copiar link para firmar") y ve "Firmaron (n)" en el editor y en la página pública.
+5. **Invitados por `/w/:slug`** — `pages/PublicWall.js`: el lienzo está **siempre en modo firma**
+   (header y footer del shell, no propios) con nombre pedido en un modal al entrar, lápiz o goma,
+   grosor, zoom/pan y **Guardar firma**. La firma se envía con `POST /api/w/{slug}/sign` y se guarda
+   con `signer_name`. El dueño copia el link desde su editor ("Copiar link para firmar") y ve
+   "Firmaron (n)" en el editor y en la página pública.
+6. **Tarjetas de "Mis muros"** — preview = JPEG del muro (no la cuadrícula CSS): `renderWallThumbnail()`
+   en `utils/wallCanvas.js` compone fondo + trazos en un canvas y devuelve `toDataURL('image/jpeg')`;
+   el listado no trae trazos, así que el dashboard pide cada muro en paralelo (`loadPreviews`). Menú de
+   3 puntitos: Editar (mismo modal que crear → `PATCH`), Reiniciar (`PUT .../strokes` con `[]`),
+   **Compartir** (modal social) y Eliminar (`DELETE`), con modal de confirmación propio (no `confirm()`).
 
 ### Falta (ideas sueltas, sin fase asignada)
 - Moderación/anti-abuso de firmas (límite por IP, borrar una firma puntual) y toggle de "aceptar firmas".
-- Editar (nombre/color/visibilidad) o borrar un muro desde su tarjeta en "Mis muros" (hoy el `PATCH`
-  y el `DELETE` existen pero no tienen UI).
-- Compartir el link desde la tarjeta del dashboard, no solo desde el editor.
 - Commit + push en `main`.
 
 ## Decisiones de implementación del lienzo
@@ -68,11 +78,19 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
   (`renderStrokes`) al cargar, deshacer, borrar y empezar cada trazo (así un toque suelto deja punto).
 - Zoom en modo "ver" con `transform: translate(...) scale(...)` sobre el canvas (sin re-render).
 - Sin WebSocket: guardar manual con el botón "Guardar" + aviso "Tenés cambios sin guardar".
-- **Firmas de invitados**: el invitado solo usa lápiz. Sus trazos viven en `draft` y se envían con
-  `POST /api/w/{slug}/sign`, que **agrega** filas con `signer_name` (no reemplaza la lista): dos
-  personas pueden firmar sin pisarse. El dueño sigue guardando con `PUT` (reemplaza todo), así que su
-  cliente reenvía los `signer_name` que recibió y las firmas no se pierden. El lienzo público redibuja
-  `[...strokes, ...draft]`, con el mismo visor que el modo "Ver".
+- **Firmas de invitados**: el invitado está siempre firmando. Sus trazos a lápiz viven en `draft` y
+  se envían con `POST /api/w/{slug}/sign`, que **agrega** filas con `signer_name` (no reemplaza la
+  lista): dos personas pueden firmar sin pisarse. La goma del invitado es **sobre datos**
+  (`erasePoints`/`eraseAlong` en `utils/wallCanvas.js`): reescribe solo su `draft`, así nunca borra las
+  firmas ya guardadas, y lo que se envía sigue siendo solo lápiz. El muro público se dibuja
+  `[...draft, ...strokes]` y ordena las firmas nuevas **debajo** de las anteriores (`displayOrder`:
+  invitados más nuevos primero, después las viejas y al final los trazos del dueño). El dueño sigue
+  guardando con `PUT` (reemplaza todo) y reenvía los `signer_name` que recibió.
+- **Zoom táctil**: gesto de dos dedos implementado a mano con Pointer Events, igual en `WallEditor` y
+  `PublicWall` (`pointers`, `beginPinch`, `updatePinch`, `clampZoom`). La rueda/botones siguen andando.
+- **Compartir**: el link de firma es `location.origin + '/w/' + wall.slug`; el modal del dashboard abre
+  share sheets externos (Facebook/WhatsApp/X/Telegram) y "Copiar link"; Instagram Stories no admite
+  deep-link, así que copia el link y abre Instagram.
 - **`signer_name`** en `Stroke` (`backend/app/models/__init__.py`) + entrada en `_LIGHT_MIGRATIONS`
   (`backend/app/core/database.py`: `ALTER TABLE strokes ADD COLUMN signer_name VARCHAR(60)`), porque
   `create_all()` no agrega columnas a tablas existentes.
@@ -92,6 +110,20 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
 - Service worker (`public/sw.js`, cache `mimuro-v3`): solo en producción, network-first; en dev
   `main.js` desregistra el viejo. Si dev "no carga", es un SW viejo → desregistrar + limpiar cachés.
 - PowerShell 5.1: sin `&&`; textos con acentos solo con las herramientas de edición (UTF-8).
+- **`strokes.author_name` NOT NULL legada**: la tabla de la versión anterior en `mimuro.db` tiene
+  `author_name VARCHAR(100) NOT NULL` y el modelo `Stroke` (que ya no la usa) no la mapeaba → el
+  `PUT /api/walls/{id}/strokes` devolvía **500** al guardar. Los tests no lo ven: `conftest.py`
+  crea una DB fresca con `create_all()` del modelo nuevo. Fijo: mapear la columna en `Stroke`
+  (`default=""`) y llenarla en `save_strokes` y `sign_wall`.
+- **`--reload` trabado**: WatchFiles puede imprimir "Reloading..." y **no** reiniciar el worker →
+  sigue corriendo el código viejo. Ojo: los tracebacks leen el texto del archivo **del disco**, así
+  que muestran las líneas del código nuevo aunque corra el viejo (enganoso). Si un cambio "no se
+  aplica": matar los procesos uvicorn y reiniciar.
+- **Backend "colgado"**: si el login u otra llamada dan `NetworkError` y la consola del navegador
+  no muestra respuesta, casi siempre un uvicorn viejo sigue con el puerto 8000 (acepta conexiones
+  pero no responde) y el nuevo no pudo bindear. Verificar con `Get-NetTCPConnection -State Listen
+  -LocalPort 8000`, matar esos PIDs y reiniciar `python -m uvicorn app.main:app --reload` desde
+  `backend/`. (El `NetworkError` tarda ~90 s porque `api.js` reintenta 3 × 30 s de timeout.)
 
 ## Decisiones
 - Backend mínimo para reconstruir sobre base limpia; diseño "pulido ligero".

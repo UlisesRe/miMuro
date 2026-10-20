@@ -608,3 +608,18 @@
   background-color: var(--color-bg-muted);
   border-radius: var(--radius-full);
 }
+
+/* ========================================
+   Compartir muro (modal del dashboard)
+   ======================================== */
+
+.share-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.share-grid .btn {
+  justify-content: center;
+}

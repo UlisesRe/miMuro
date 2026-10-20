@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { WALL_SIZE, renderStrokes, renderWallThumbnail, pointFromEvent } from './wallCanvas.js'
+import {
+  WALL_SIZE,
+  renderStrokes,
+  renderWallThumbnail,
+  pointFromEvent,
+  erasePoints,
+  eraseAlong,
+  clampZoom,
+  distance,
+  midPoint
+} from './wallCanvas.js'
 
 // jsdom no implementa canvas 2d, así que se usa un doble
 // que registra las llamadas: alcanza para probar la lógica
@@ -108,5 +118,61 @@ describe('pointFromEvent', () => {
 
     expect(point.x).toBeCloseTo(500)
     expect(point.y).toBeCloseTo(500)
+  })
+})
+
+describe('erasePoints', () => {
+  it('borra los puntos que caen dentro del radio y parte el trazo', () => {
+    const strokes = [
+      { tool: 'pen', color: '#111111', width: 4, points: [0, 0, 10, 0, 200, 0] }
+    ]
+
+    const result = erasePoints(strokes, 10, 0, 5)
+
+    expect(result).toEqual([
+      { tool: 'pen', color: '#111111', width: 4, points: [0, 0] },
+      { tool: 'pen', color: '#111111', width: 4, points: [200, 0] }
+    ])
+  })
+
+  it('no muta la lista original', () => {
+    const strokes = [
+      { tool: 'pen', color: '#111111', width: 4, points: [0, 0, 10, 0, 20, 0] }
+    ]
+
+    erasePoints(strokes, 10, 0, 5)
+
+    expect(strokes[0].points).toEqual([0, 0, 10, 0, 20, 0])
+  })
+
+  it('deja intacto lo que está lejos de la goma', () => {
+    const strokes = [{ tool: 'pen', color: '#111111', width: 4, points: [0, 0, 1, 1] }]
+
+    expect(erasePoints(strokes, 500, 500, 10)).toEqual(strokes)
+  })
+})
+
+describe('eraseAlong', () => {
+  it('borra también los puntos que quedan entre muestras', () => {
+    const strokes = [
+      { tool: 'pen', color: '#111111', width: 4, points: [0, 0, 25, 0, 50, 0, 75, 0, 100, 0] }
+    ]
+
+    const result = eraseAlong(strokes, { x: 25, y: 0 }, { x: 75, y: 0 }, 5)
+
+    expect(result.map((stroke) => stroke.points)).toEqual([[0, 0], [100, 0]])
+  })
+})
+
+describe('zoom y gesto', () => {
+  it('clampZoom acota entre 1 y 4', () => {
+    expect(clampZoom(0.4)).toBe(1)
+    expect(clampZoom(9)).toBe(4)
+    expect(clampZoom(2.004)).toBe(2)
+  })
+
+  it('distance y midPoint miden el gesto de dos dedos', () => {
+    expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5)
+    expect(midPoint({ x: 0, y: 0 }, { x: 10, y: 20 })).toEqual({ x: 5, y: 10 })
   })
 })

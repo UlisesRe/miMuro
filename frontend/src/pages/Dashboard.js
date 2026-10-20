@@ -47,6 +47,9 @@ export function DashboardPageComponent() {
     formError: null,
     palette: PALETTE,
     form: { title: '', background_color: '#ffffff', is_public: true },
+    shareOpen: false,
+    shareWall: null,
+    shareUrl: '',
 
     async init() {
       await whenAuthReady()
@@ -249,6 +252,57 @@ export function DashboardPageComponent() {
 
     openWall(wall) {
       this.$router.navigate(`/dashboard/w/${wall.id}`)
+    },
+
+    openShare(wall) {
+      this.openMenuId = null
+      this.shareWall = wall
+      const origin = window.location.origin
+      this.shareUrl = origin + '/w/' + wall.slug
+      this.shareOpen = true
+      this.$nextTick(() => this.$refs.shareCopy?.focus())
+    },
+
+    closeShare() {
+      this.shareOpen = false
+      this.shareWall = null
+    },
+
+    async copyShare() {
+      try {
+        await navigator.clipboard.writeText(this.shareUrl)
+        this.$store.toast.success('Enlace copiado')
+      } catch {
+        this.$store.toast.error('No pudimos copiar el enlace')
+      }
+    },
+
+    shareOnFacebook() {
+      const url = encodeURIComponent(this.shareUrl)
+      window.open('https://www.facebook.com/sharer/sharer.php?u=' + url, '_blank', 'noopener,noreferrer')
+    },
+
+    shareOnWhatsApp() {
+      const text = encodeURIComponent('Mira mi muro: ' + this.shareUrl)
+      window.open('https://api.whatsapp.com/send?text=' + text, '_blank', 'noopener,noreferrer')
+    },
+
+    shareOnTwitter() {
+      const text = encodeURIComponent('Mira mi muro: ' + this.shareUrl)
+      const url = encodeURIComponent(this.shareUrl)
+      window.open('https://twitter.com/intent/tweet?url=' + url + '&text=' + text, '_blank', 'noopener,noreferrer')
+    },
+
+    shareOnTelegram() {
+      const text = encodeURIComponent('Mira mi muro: ' + this.shareUrl)
+      const url = encodeURIComponent(this.shareUrl)
+      window.open('https://t.me/share/url?url=' + url + '&text=' + text, '_blank', 'noopener,noreferrer')
+    },
+
+    shareOnInstagram() {
+      this.copyShare()
+      this.$store.toast.info('Enlace copiado. Abrí Instagram Stories y pegalo.')
+      window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer')
     }
   }
 }
@@ -330,6 +384,7 @@ export const DashboardPageTemplate = `
                    role="menu" aria-label="Opciones del muro">
                 <button type="button" class="wall-card__menu-item" role="menuitem" @click="openEdit(wall)">Editar</button>
                 <button type="button" class="wall-card__menu-item" role="menuitem" @click="askReset(wall)">Reiniciar</button>
+                <button type="button" class="wall-card__menu-item" role="menuitem" @click="openShare(wall)">Compartir</button>
                 <button type="button" class="wall-card__menu-item wall-card__menu-item--danger" role="menuitem" @click="askDelete(wall)">Eliminar</button>
               </div>
             </div>
@@ -437,6 +492,43 @@ export const DashboardPageTemplate = `
           <span class="spinner" x-show="confirmBusy" x-cloak aria-hidden="true"></span>
           <span x-text="confirmBusy ? 'Un momento...' : confirmLabel"></span>
         </button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="modal" x-show="shareOpen" x-cloak @keydown.escape.window="closeShare()">
+    <div class="modal__backdrop" @click="closeShare()"></div>
+
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="share-wall-title">
+      <header class="modal__header">
+        <h2 class="modal__title" id="share-wall-title" tabindex="-1">Compartir muro</h2>
+        <button type="button" class="btn btn--icon btn--ghost" @click="closeShare()" aria-label="Cerrar">
+          ${ICONS.close}
+        </button>
+      </header>
+
+      <div class="modal__body">
+        <p class="modal__text">Copiá el enlace para que la gente pueda firmar tu muro.</p>
+        <div class="field">
+          <label class="field__label" for="share-url">Enlace</label>
+          <input id="share-url" class="field__input" type="text" readonly x-ref="shareCopy" :value="shareUrl">
+        </div>
+        <div class="field">
+          <span class="field__label">Compartir en</span>
+          <div class="share-grid">
+            <button type="button" class="btn btn--ghost btn--sm" @click="copyShare()">Copiar link</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnInstagram()">Instagram Stories</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnFacebook()">Facebook</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnWhatsApp()">WhatsApp</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnTwitter()">X (Twitter)</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnTelegram()">Telegram</button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--ghost" @click="closeShare()">Cerrar</button>
+        <button type="button" class="btn btn--primary" @click="copyShare()">Copiar enlace</button>
       </footer>
     </div>
   </div>

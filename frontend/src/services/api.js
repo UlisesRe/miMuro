@@ -2,7 +2,9 @@
 // miMuro - API Service
 // ========================================
 
-const API_BASE = '/api'
+// En dev el proxy de Vite manda /api al backend local; en producción
+// (frontend y backend en dominios distintos) se define VITE_API_BASE_URL.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 const DEFAULT_TIMEOUT = 30000 // 30 seconds
 
 // "Recordarme" decides where the token lives, so
@@ -55,6 +57,8 @@ async function fetchWithTimeout(url, config, timeout = DEFAULT_TIMEOUT) {
 
   try {
     return await fetch(url, {
+      // Las cookies de sesión viajan entre dominios (Netlify ↔ backend).
+      credentials: 'include',
       ...config,
       signal: controller.signal
     })
@@ -143,6 +147,7 @@ async function refreshToken() {
   try {
     const response = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: stored })
     })
