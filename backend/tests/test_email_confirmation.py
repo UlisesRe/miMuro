@@ -214,3 +214,36 @@ def test_resend_unknown_email(sent_codes):
         json={"email": f"nobody-{uuid.uuid4().hex[:8]}@example.com"},
     )
     assert res.status_code == 400
+
+
+def test_email_falls_back_to_log_when_smtp_fails(monkeypatch, capsys):
+    """Si el SMTP falla (host bloqueado), el código igual queda en el log.
+
+    Sin esta red de seguridad, un registro en un host que bloquea SMTP
+    saliente queda a medias: no llega el correo y el código no aparece
+    en ningún lado.
+    """
+    monkeypatch.setattr(email_service.settings, "smtp_host", "smtp.example.com")
+
+    class FailingSMTP:
+        def __init__(self, *args, **kwargs):
+            raise OSError(101, "Network is unreachable")
+
+    monkeypatch.setattr(email_service.smtplib, "SMTP", FailingSMTP)
+
+    sent = email_service.send_confirmation_email("alguien@example.com", "Alguien", "424242")
+
+    assert sent is False
+    captured = capsys.readouterr()
+    assert "alguien@example.com" in captured.out
+    assert "424242" in captured.out
+
+
+def test_email_dev_mode_logs_code_when_no_smtp(monkeypatch, capsys):
+    monkeypatch.setattr(email_service.settings, "smtp_host", "")
+
+    sent = email_service.send_confirmation_email("alguien@example.com", "Alguien", "111222")
+
+    assert sent is True
+    captured = capsys.readouterr()
+    assert "111222" in captured.out

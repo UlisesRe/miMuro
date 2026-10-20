@@ -53,19 +53,32 @@ def _render_confirmation_email(name: str, code: str, expires_minutes: int) -> tu
     return text, html
 
 
+def _log_dev_code(to_email: str, code: str, expires: int, reason: str) -> None:
+    """Deja el código en el log cuando no se pudo enviar el correo.
+
+    En Render Free el SMTP saliente está bloqueado, así que este respaldo
+    permite confirmar la cuenta leyendo el código en los logs.
+    """
+    logger.warning("[EMAIL][FALLBACK] %s", reason)
+    print(
+        f"[EMAIL][FALLBACK] Para: {to_email} — Código de confirmación: {code} "
+        f"(vence en {expires} min)",
+        flush=True,
+    )
+
+
 def send_confirmation_email(to_email: str, name: str, code: str) -> bool:
     """Envía el código de confirmación por SMTP.
 
     Si SMTP_HOST no está configurado (modo desarrollo) se imprime el código
-    en la consola del backend en lugar de enviar el correo.
+    en la consola del backend en lugar de enviar el correo. Si el envío falla
+    (por ejemplo, SMTP saliente bloqueado por el host), el código igual queda
+    en el log para no dejar el registro a medias.
     """
     expires = settings.confirmation_code_expire_minutes
 
     if not settings.smtp_host:
-        logger.info("[EMAIL][DEV] Código para %s: %s (vence en %d min)",
-                    to_email, code, expires)
-        print(f"[EMAIL][DEV] Para: {to_email} — Código de confirmación: {code} "
-              f"(vence en {expires} min)", flush=True)
+        _log_dev_code(to_email, code, expires, "SMTP_HOST vacío (modo desarrollo)")
         return True
 
     text, html = _render_confirmation_email(name, code, expires)
@@ -86,6 +99,7 @@ def send_confirmation_email(to_email: str, name: str, code: str) -> bool:
             server.send_message(msg)
         logger.info("Código de confirmación enviado a %s", to_email)
         return True
-    except Exception:
+    except Exception as error:
         logger.exception("No se pudo enviar el correo a %s", to_email)
+        _log_dev_code(to_email, code, expires, f"No se pudo enviar el correo ({error})")
         return False

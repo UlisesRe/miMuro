@@ -119,6 +119,24 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
   sigue corriendo el código viejo. Ojo: los tracebacks leen el texto del archivo **del disco**, así
   que muestran las líneas del código nuevo aunque corra el viejo (enganoso). Si un cambio "no se
   aplica": matar los procesos uvicorn y reiniciar.
+- **Render Free bloquea el SMTP saliente** (puertos 25/465/587): `smtplib` falla con
+  `OSError: [Errno 101] Network is unreachable` y el correo de confirmación nunca sale. No es
+  configuración (`SMTP_HOST`/`SMTP_PASSWORD` están bien): es política del host. Para mails reales hay
+  que pasar a una API HTTP (Resend/Brevo, puerto 443); mientras tanto `send_confirmation_email`
+  imprime el código en los logs con `[EMAIL][FALLBACK]` cuando el envío falla (y el registro no queda
+  a medias). Render también pega en `/` en sus chequeos: por eso existe la ruta `GET /` que devuelve
+  un JSON descriptivo (antes quedaba un 404 que parecía un error).
+- **Despliegue (Netlify + Render)**: el frontend va a Netlify (`Base directory = frontend`,
+  `Publish = frontend/dist`) y el backend a Render (`Root Directory = backend`, start
+  `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`). En Netlify la variable
+  `VITE_API_BASE_URL` debe incluir el `/api` final (`https://host/api`), porque reemplaza el prefijo
+  `/api` del código (`API_BASE`). En Render van `DEBUG=false` (cookies `Secure` + `SameSite=None`),
+  `SECRET_KEY` y `DATABASE_URL`. Con `DATABASE_URL=sqlite:///./mimuro.db` los datos se pierden en cada
+  deploy (filesystem efímero del plan Free): para persistir hay que pasar a Postgres.
+- **Cookies cross-site**: con frontend y backend en dominios distintos, `fetch` necesita
+  `credentials: 'include'` (ya está en `api.js`) y el backend `SameSite=None; Secure` (`DEBUG=false`).
+  Las `VITE_*` se graban en el build: cambiar una exige redeploy con *Clear cache and deploy site*
+  (un deploy normal reusa el bundle viejo). Ojo también con el service worker viejo del navegador.
 - **Backend "colgado"**: si el login u otra llamada dan `NetworkError` y la consola del navegador
   no muestra respuesta, casi siempre un uvicorn viejo sigue con el puerto 8000 (acepta conexiones
   pero no responde) y el nuevo no pudo bindear. Verificar con `Get-NetTCPConnection -State Listen

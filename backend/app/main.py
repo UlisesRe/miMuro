@@ -362,6 +362,15 @@ async def health(request: Request):
     return JSONResponse({"status": "ok"})
 
 
+async def root(request: Request):
+    """La raíz no es parte de la API: devuelve algo legible en vez de un 404.
+
+    Los chequeos de salud de los hosts de despliegue pegan en `/`; sin esto
+    quedaba un 404 en los logs que parecía un error.
+    """
+    return JSONResponse({"service": "miMuro", "api": "/api/", "health": "/api/health"})
+
+
 async def get_stats(request: Request):
     """Contador público de personas registradas (prueba social del home)."""
     db = next(get_db())
@@ -747,6 +756,7 @@ run_light_migrations()
 app = Starlette(
     debug=settings.debug,
     routes=[
+        Route("/", root, methods=["GET"]),
         Route("/api/", health, methods=["GET"]),
         Route("/api/health", health, methods=["GET"]),
         Route("/api/stats", get_stats, methods=["GET"]),
