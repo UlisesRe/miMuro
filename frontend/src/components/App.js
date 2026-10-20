@@ -4,10 +4,25 @@
 // ========================================
 
 import AppTemplate from './AppTemplate.html?raw'
+import { closeAllModals } from '../utils/accessibility.js'
+import { setDocumentTitle } from '../utils/documentTitle.js'
 
 // Pages that own the whole viewport and should
 // not carry the app navigation.
 const AUTH_PAGES = ['LoginPage', 'RegisterPage']
+
+// Título por defecto de las páginas estáticas. Las que dependen de datos
+// (muro propio o público) lo fijan ellas al cargar.
+const PAGE_TITLES = {
+  HomePage: '',
+  LoginPage: 'Entrar',
+  RegisterPage: 'Crear cuenta',
+  DashboardPage: 'Mis muros',
+  WallEditorPage: 'Muro',
+  PublicWallPage: 'Muro',
+  LegalPage: 'Legal',
+  NotFoundPage: 'Página no encontrada'
+}
 
 export function AppComponent() {
   return {
@@ -34,6 +49,10 @@ export function AppComponent() {
     },
 
     handleRouteChange() {
+      // Un modal abierto no debe sobrevivir a un cambio de ruta.
+      closeAllModals()
+      // Título por defecto de la página (las dinámicas lo pisan al cargar).
+      setDocumentTitle(PAGE_TITLES[this.currentPage] || '')
       // Focus the routed content so screen readers and
       // the keyboard land in the right place.
       this.$nextTick(() => {

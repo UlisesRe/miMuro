@@ -24,8 +24,12 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
   dashboard, el menú de 3 puntitos de cada tarjeta tiene **Compartir** (modal tipo hoja social:
   Copiar link, Instagram Stories, Facebook, WhatsApp, X, Telegram).
 - **Zoom táctil (pinch) en todos los lienzos**, también en los editables: dos dedos para acercar/mover.
-- Verificación: `npm run build` (28 módulos) · `npm test -- --run` 17/17 · `python -m pytest` 26/26.
-- Pendiente: **push** a `origin/main` (el commit ya está hecho).
+- **Pulido UX/UI + refactor (2026-10-20)**: la mecánica del lienzo (zoom, pan, pinch, punteros, dibujo)
+  se movió a `utils/wallInteraction.js`; los modales tienen focus trap, Escape, restauración de foco y
+  bloqueo de scroll (`utils/accessibility.js`); íconos y paletas centralizados (`utils/icons.js`,
+  `utils/constants.js`); título de la pestaña por página (`utils/documentTitle.js`).
+- Verificación: `npm run build` (33 módulos) · `npm test -- --run` 34/34 · `python -m pytest` 28/28.
+- Pendiente: **push** a `origin/main`.
 
 ## Arquitectura
 - **Backend** Starlette + SQLAlchemy + SQLite. Todo en `backend/app/main.py`; núcleo en
@@ -63,7 +67,7 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
 
 ### Falta (ideas sueltas, sin fase asignada)
 - Moderación/anti-abuso de firmas (límite por IP, borrar una firma puntual) y toggle de "aceptar firmas".
-- Commit + push en `main`.
+- Push en `main`.
 
 ## Decisiones de implementación del lienzo
 - **`WALL_SIZE = 1000`** (espacio lógico fijo) en `frontend/src/utils/wallCanvas.js`. El canvas tiene
@@ -86,14 +90,44 @@ firmar. Hoy: auth + landing + muros del dueño (crear, editar, ver) + **invitado
   `[...draft, ...strokes]` y ordena las firmas nuevas **debajo** de las anteriores (`displayOrder`:
   invitados más nuevos primero, después las viejas y al final los trazos del dueño). El dueño sigue
   guardando con `PUT` (reemplaza todo) y reenvía los `signer_name` que recibió.
-- **Zoom táctil**: gesto de dos dedos implementado a mano con Pointer Events, igual en `WallEditor` y
-  `PublicWall` (`pointers`, `beginPinch`, `updatePinch`, `clampZoom`). La rueda/botones siguen andando.
+- **Zoom táctil**: gesto de dos dedos implementado a mano con Pointer Events, **en un solo lugar**
+  (`utils/wallInteraction.js`: `pointers`, `beginPinch`, `updatePinch`, `clampZoom`), compartido por
+  `WallEditor` y `PublicWall`. La rueda/botones siguen andando.
 - **Compartir**: el link de firma es `location.origin + '/w/' + wall.slug`; el modal del dashboard abre
   share sheets externos (Facebook/WhatsApp/X/Telegram) y "Copiar link"; Instagram Stories no admite
   deep-link, así que copia el link y abre Instagram.
 - **`signer_name`** en `Stroke` (`backend/app/models/__init__.py`) + entrada en `_LIGHT_MIGRATIONS`
   (`backend/app/core/database.py`: `ALTER TABLE strokes ADD COLUMN signer_name VARCHAR(60)`), porque
   `create_all()` no agrega columnas a tablas existentes.
+
+## Pulido UX/UI + refactor (2026-10-20)
+
+- **Módulos compartidos nuevos** (`frontend/src/utils/`):
+  - `wallInteraction.js` — `wallCanvasState()` (estado del lienzo) + `mixWallInteraction(componente, opciones)`.
+    Concentra zoom/pan/pinch/punteros/dibujo/goma. Cada página aporta hooks (`getStrokes`,
+    `getActiveList`, `canDraw`, `eraserEnabled`, `onStrokeStart`, `wheelZoom`, `discardStartedStroke`).
+  - `accessibility.js` — `openModal`/`closeModal`/`closeAllModals`/`trapFocus`: guarda quién tenía el
+    foco, lo restaura al cerrar, bloquea el scroll del fondo y atrapa el Tab dentro del panel.
+  - `icons.js` — todos los SVG en un lugar (`ICONS`, `TOAST_ICONS`), decorativos con `aria-hidden`.
+  - `constants.js` — `PEN_COLORS`, `WALL_BACKGROUNDS`, `DEFAULT_INK`, `DEFAULT_BACKGROUND`.
+  - `documentTitle.js` — `setDocumentTitle(título)`; `App.js` pone un título por defecto por página.
+- **Getters + mezcla**: `mixWallInteraction` usa `Object.defineProperties` +
+  `getOwnPropertyDescriptors`. **Un spread o `Object.assign` NO sirve**: al copiar leerían los getters
+  (`backgroundColor`, `canvasTransform`, `signerNames`) con `this` vacío y los congelarían en un valor.
+- **Tamaños**: `WallEditor.js` 537 → 330 líneas; `PublicWall.js` 587 → 361; la lógica común vive una
+  sola vez en `wallInteraction.js`. CSS: 63.05 kB → 59.38 kB (reglas muertas eliminadas: `.faq*`,
+  `.btn--soft/--success`, `.card--interactive/__header/__footer`, `.avatar--md/--lg`,
+  `.header__icon-btn`, `.user-menu__count/__divider`, `.page--wall`, `.auth__notice`,
+  `.auth-form__separator`, `.field__action-label`, `.toolbar__field/__input`, `.feature__text`).
+- **Modales**: los 3 del dashboard (`create`/`confirm`/`share`) y el del nombre público usan
+  `openModal(this, 'clave')` → buscan `$refs.clavePanel`. El `<div class="modal">` lleva
+  `@keydown.tab="trapModal($event, 'clavePanel')"` (o `handleModalTab`). `App.js` llama
+  `closeAllModals()` en cada cambio de ruta (un modal no sobrevive a navegar).
+- **A11y varios**: `aria-live` en el porcentaje de zoom, `aria-pressed` en herramientas y colores,
+  `aria-label` en botones de ícono, el contador de la home se oculta hasta tener número real,
+  `prefers-reduced-motion` y `:focus-visible` ya estaban en `base.css`.
+- **Tests nuevos**: `utils/wallInteraction.test.js` (10) y `utils/accessibility.test.js` (7). Ojo al
+  testear los getters: hay que mezclar con `mixWallInteraction` (como las páginas), no con `Object.assign`.
 
 ## Trampas / aprendizajes
 - Alpine (npm): llamar **`Alpine.start()`** al final de `main.js` (1 vez). Sin eso la página queda en

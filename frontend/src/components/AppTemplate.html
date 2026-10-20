@@ -6,20 +6,7 @@
   <div class="toast-container" aria-live="polite" aria-atomic="false">
     <template x-for="notification in $store.toast.notifications" :key="notification.id">
       <div class="toast" :class="'toast--' + notification.type" role="status">
-        <span class="toast__icon" aria-hidden="true">
-          <template x-if="notification.type === 'success'">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          </template>
-          <template x-if="notification.type === 'error'">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </template>
-          <template x-if="notification.type === 'warning'">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-          </template>
-          <template x-if="notification.type === 'info'">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-          </template>
-        </span>
+        <span class="toast__icon" aria-hidden="true" x-html="notification.icon"></span>
 
         <div class="toast__body" x-text="notification.message"></div>
 

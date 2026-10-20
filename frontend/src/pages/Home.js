@@ -9,7 +9,7 @@ export function HomePageComponent() {
     homePageTemplate: HomePageTemplate,
 
     // Live social proof (filled from /api/stats)
-    stats: { members: 0 },
+    stats: { members: null },
 
     init() {
       this.loadStats()
@@ -18,7 +18,7 @@ export function HomePageComponent() {
     async loadStats() {
       try {
         const data = await api.stats.get()
-        this.stats = { members: data?.members ?? this.stats.members }
+        if (typeof data?.members === 'number') this.stats = { members: data.members }
       } catch {
         // The counter is decorative: never break the page.
       }
@@ -95,13 +95,15 @@ export const HomePageTemplate = `
     </div>
   </section>
 
-  <!-- Social proof - live counter -->
-  <section class="section section--muted" aria-label="Comunidad">
+  <!-- Social proof - live counter (se oculta hasta tener un número) -->
+  <section class="section section--muted" aria-label="Comunidad"
+           x-show="stats.members !== null" x-cloak>
     <div class="container">
       <div class="stats stats--one">
         <div class="stat">
           <span class="stat__value" x-text="stats.members"></span>
-          <span class="stat__label">personas ya tienen su muro</span>
+          <span class="stat__label"
+                x-text="stats.members === 1 ? 'persona ya tiene su muro' : 'personas ya tienen su muro'"></span>
         </div>
       </div>
     </div>

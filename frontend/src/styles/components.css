@@ -84,17 +84,6 @@
   text-decoration: none;
 }
 
-.btn--soft {
-  color: var(--color-primary);
-  background-color: var(--color-primary-soft);
-}
-
-.btn--soft:hover:not(:disabled) {
-  background-color: var(--color-primary-soft-hover);
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
 .btn--ghost {
   color: var(--color-text-secondary);
 }
@@ -114,11 +103,6 @@
   color: var(--color-error);
   background-color: color-mix(in srgb, var(--color-error-soft) 70%, var(--color-error) 30%);
   text-decoration: none;
-}
-
-.btn--success {
-  color: var(--color-success);
-  background-color: var(--color-success-soft);
 }
 
 /* Sizes */
@@ -517,20 +501,6 @@
   box-shadow: var(--shadow-xs);
 }
 
-.card--interactive {
-  cursor: pointer;
-  transition:
-    box-shadow var(--duration-base) var(--ease-out),
-    border-color var(--duration-base) var(--ease-in-out),
-    transform var(--duration-base) var(--ease-out);
-}
-
-.card--interactive:hover {
-  border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
 .card__body {
   padding: var(--space-md);
 }
@@ -539,16 +509,6 @@
   .card__body {
     padding: var(--space-lg);
   }
-}
-
-.card__header {
-  padding: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.card__footer {
-  padding: var(--space-md);
-  border-top: 1px solid var(--color-border);
 }
 
 /* ========================================
@@ -574,18 +534,6 @@
   width: 2rem;
   height: 2rem;
   font-size: var(--text-xs);
-}
-
-.avatar--md {
-  width: 2.5rem;
-  height: 2.5rem;
-  font-size: var(--text-sm);
-}
-
-.avatar--lg {
-  width: 3.5rem;
-  height: 3.5rem;
-  font-size: var(--text-lg);
 }
 
 .badge {

@@ -7,48 +7,41 @@
 //
 // Los trazos viven como datos en `this.strokes`; el canvas solo los
 // dibuja. Así deshacer, borrar todo y la goma son operaciones sobre la
-// lista, y guardar es enviarla completa.
+// lista, y guardar es enviarla completa. Toda la mecánica de punteros,
+// zoom y dibujo viene del módulo compartido `wallInteraction`.
 // ========================================
 
 import { api } from '../services/api.js'
 import { whenAuthReady } from '../hooks/useAuth.js'
-import {
-  WALL_SIZE,
-  renderStrokes,
-  drawSegment,
-  pointFromEvent,
-  downloadWallPng,
-  clampZoom,
-  distance,
-  midPoint
-} from '../utils/wallCanvas.js'
+import { downloadWallPng } from '../utils/wallCanvas.js'
+import { mixWallInteraction, wallCanvasState } from '../utils/wallInteraction.js'
+import { DEFAULT_INK, PEN_COLORS } from '../utils/constants.js'
+import { ICONS } from '../utils/icons.js'
+import { setDocumentTitle } from '../utils/documentTitle.js'
 
-const ICONS = {
-  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>',
-  pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>',
-  eraser: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l9.6-9.6a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 21"></path><path d="M22 21H7"></path><path d="m5 11 9 9"></path></svg>',
-  minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
-  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
-  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
-  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+// Mecánica compartida del lienzo, con los hooks de esta página:
+// dibujar solo en modo Editar, la rueda solo hace zoom en Ver, un trazo
+// nuevo marca el muro como "sin guardar" y empezar un pinch descarta el
+// trazo que hubiera quedado suelto.
+const CANVAS_OPTIONS = {
+  getStrokes: (context) => context.strokes,
+  canDraw: (context) => context.mode === 'edit',
+  wheelZoom: (context) => context.mode === 'view',
+  onStrokeAdded: (context) => {
+    context.dirty = true
+  },
+  discardStartedStroke: (context) => {
+    if (context.mode === 'edit' && context.strokes.length) {
+      context.strokes.pop()
+      context.redraw()
+    }
+  }
 }
 
-const COLORS = [
-  '#16181d',
-  '#ffffff',
-  '#e03131',
-  '#f08c00',
-  '#2f9e44',
-  '#1971c2',
-  '#7048e8',
-  '#d6336c'
-]
-
 export function WallEditorPageComponent() {
-  return {
+  const base = {
     wallEditorTemplate: WallEditorTemplate,
 
-    wallSize: WALL_SIZE,
     wallId: null,
     wall: null,
 
@@ -56,30 +49,15 @@ export function WallEditorPageComponent() {
     loadError: null,
 
     mode: 'edit',
-    tool: 'pen',
-    color: COLORS[0],
-    width: 6,
-    colors: COLORS,
+    color: DEFAULT_INK,
+    colors: PEN_COLORS,
     strokes: [],
-
-    drawing: false,
-    panning: false,
-    panOrigin: { x: 0, y: 0 },
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-
-    // Punteros activos, para el gesto de dos dedos (zoom táctil): funciona
-    // igual en los dos modos, así el móvil puede acercar también al editar.
-    pointers: {},
-    pinching: false,
-    pinchStartDistance: 1,
-    pinchStartZoom: 1,
-    pinchWorld: { x: 0, y: 0 },
 
     dirty: false,
     saving: false,
     confirmingClear: false,
+
+    ...wallCanvasState(),
 
     async init() {
       await whenAuthReady()
@@ -94,24 +72,6 @@ export function WallEditorPageComponent() {
       await this.load()
     },
 
-    get backgroundColor() {
-      return this.wall?.background_color || '#ffffff'
-    },
-
-    // Nombres únicos de quienes ya firmaron (los trazos propios no tienen).
-    get signerNames() {
-      const names = []
-      for (const stroke of this.strokes) {
-        const name = stroke.signer_name
-        if (name && !names.includes(name)) names.push(name)
-      }
-      return names
-    },
-
-    get canvasTransform() {
-      return `transform: translate(${this.panX}px, ${this.panY}px) scale(${this.zoom});`
-    },
-
     async load() {
       this.loading = true
       this.loadError = null
@@ -119,6 +79,7 @@ export function WallEditorPageComponent() {
         const wall = await api.walls.get(this.wallId)
         this.wall = wall
         this.strokes = wall.strokes || []
+        setDocumentTitle(wall.title)
         this.dirty = false
         await this.$nextTick()
         this.redraw()
@@ -130,16 +91,6 @@ export function WallEditorPageComponent() {
       } finally {
         this.loading = false
       }
-    },
-
-    redraw() {
-      const ctx = this.context()
-      if (ctx) renderStrokes(ctx, this.strokes)
-    },
-
-    context() {
-      const canvas = this.$refs.canvas
-      return canvas ? canvas.getContext('2d') : null
     },
 
     goBack() {
@@ -164,141 +115,6 @@ export function WallEditorPageComponent() {
       this.panning = false
       this.confirmingClear = false
       if (mode === 'edit') this.resetView()
-    },
-
-    selectTool(tool) {
-      this.tool = tool
-    },
-
-    // --------------------------------------
-    // Dibujo
-
-    onPointerDown(event) {
-      if (this.loading || this.loadError) return
-
-      this.trackPointer(event)
-      event.currentTarget.setPointerCapture(event.pointerId)
-
-      const count = this.pointerList().length
-      if (count === 2) {
-        this.beginPinch()
-        return
-      }
-      if (count > 2) return
-
-      if (this.mode !== 'edit') {
-        this.panning = true
-        this.panOrigin = { x: event.clientX - this.panX, y: event.clientY - this.panY }
-        return
-      }
-
-      const point = pointFromEvent(this.$refs.canvas, event)
-      const eraser = this.tool === 'eraser'
-      this.strokes.push({
-        tool: this.tool,
-        color: eraser ? '#111111' : this.color,
-        // La goma es más gruesa: el mismo control sirve para elegir
-        // punta fina o borrar zonas grandes.
-        width: eraser ? this.width * 3 : this.width,
-        points: [point.x, point.y]
-      })
-      this.drawing = true
-      this.dirty = true
-      // Repinta con el punto inicial para que un toque suelto deje marca.
-      this.redraw()
-    },
-
-    onPointerMove(event) {
-      if (!this.pointers[event.pointerId]) return
-      this.trackPointer(event)
-
-      if (this.pointerList().length >= 2) {
-        this.updatePinch()
-        return
-      }
-
-      if (this.mode !== 'edit') {
-        if (!this.panning) return
-        this.panX = event.clientX - this.panOrigin.x
-        this.panY = event.clientY - this.panOrigin.y
-        return
-      }
-
-      if (!this.drawing) return
-      const stroke = this.strokes[this.strokes.length - 1]
-      if (!stroke) return
-
-      const ctx = this.context()
-      if (!ctx) return
-
-      const point = pointFromEvent(this.$refs.canvas, event)
-      stroke.points.push(point.x, point.y)
-      drawSegment(ctx, stroke)
-    },
-
-    onPointerUp(event) {
-      if (event && event.pointerId !== undefined) delete this.pointers[event.pointerId]
-      if (this.pinching && this.pointerList().length < 2) this.pinching = false
-      this.drawing = false
-      this.panning = false
-    },
-
-    // --------------------------------------
-    // Gesto de dos dedos (zoom y desplazamiento táctil)
-
-    pointerList() {
-      return Object.keys(this.pointers).map((id) => this.pointers[id])
-    },
-
-    trackPointer(event) {
-      this.pointers[event.pointerId] = { x: event.clientX, y: event.clientY }
-    },
-
-    stageCenter() {
-      const stage = this.$refs.stage
-      if (!stage) return { x: 0, y: 0 }
-      const rect = stage.getBoundingClientRect()
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-    },
-
-    beginPinch() {
-      const [a, b] = this.pointerList()
-      if (!a || !b) return
-
-      this.pinching = true
-      // Si el primer dedo ya había empezado un trazo, se descarta: apoyar
-      // un segundo dedo no debe dejar una raya suelta en el muro.
-      if (this.drawing && this.mode === 'edit' && this.strokes.length) {
-        this.strokes.pop()
-        this.redraw()
-      }
-      this.drawing = false
-      this.panning = false
-
-      this.pinchStartDistance = Math.max(1, distance(a, b))
-      this.pinchStartZoom = this.zoom
-
-      const mid = midPoint(a, b)
-      const center = this.stageCenter()
-      this.pinchWorld = {
-        x: (mid.x - center.x - this.panX) / this.zoom,
-        y: (mid.y - center.y - this.panY) / this.zoom
-      }
-    },
-
-    updatePinch() {
-      const [a, b] = this.pointerList()
-      if (!a || !b) return
-
-      const nextZoom = clampZoom(
-        this.pinchStartZoom * (distance(a, b) / this.pinchStartDistance)
-      )
-      const mid = midPoint(a, b)
-      const center = this.stageCenter()
-
-      this.zoom = nextZoom
-      this.panX = mid.x - center.x - this.pinchWorld.x * nextZoom
-      this.panY = mid.y - center.y - this.pinchWorld.y * nextZoom
     },
 
     undo() {
@@ -330,34 +146,6 @@ export function WallEditorPageComponent() {
       }
     },
 
-    // --------------------------------------
-    // Zoom y descarga
-
-    setZoom(value) {
-      this.zoom = clampZoom(value)
-    },
-
-    zoomIn() {
-      this.setZoom(this.zoom + 0.25)
-    },
-
-    zoomOut() {
-      this.setZoom(this.zoom - 0.25)
-    },
-
-    resetView() {
-      this.zoom = 1
-      this.panX = 0
-      this.panY = 0
-    },
-
-    onWheel(event) {
-      // En modo edición la rueda sigue haciendo scroll en la página.
-      if (this.mode !== 'view') return
-      event.preventDefault()
-      this.setZoom(this.zoom + (event.deltaY < 0 ? 0.15 : -0.15))
-    },
-
     async download() {
       if (!this.wall) return
       const name = this.wall.title.replace(/[^\w\-áéíóúñ ]+/gi, '').trim() || 'mimuro'
@@ -369,6 +157,8 @@ export function WallEditorPageComponent() {
       if (ok) this.$store.toast.success('Imagen descargada')
     }
   }
+
+  return mixWallInteraction(base, CANVAS_OPTIONS)
 }
 
 export function registerWallEditorPage(Alpine) {
@@ -449,6 +239,7 @@ export const WallEditorTemplate = `
         <label class="toolbar__range">
           <span class="toolbar__label">Grosor</span>
           <input type="range" min="2" max="24" step="1" x-model.number="width"
+                 aria-label="Grosor del trazo"
                  :aria-valuetext="width + ' píxeles'">
         </label>
 
@@ -480,7 +271,7 @@ export const WallEditorTemplate = `
           <button type="button" class="btn btn--icon btn--ghost" @click="zoomOut()" aria-label="Alejar">
             ${ICONS.minus}
           </button>
-          <span class="toolbar__zoom" x-text="Math.round(zoom * 100) + '%'"></span>
+          <span class="toolbar__zoom" aria-live="polite" x-text="Math.round(zoom * 100) + '%'"></span>
           <button type="button" class="btn btn--icon btn--ghost" @click="zoomIn()" aria-label="Acercar">
             ${ICONS.plus}
           </button>
@@ -502,6 +293,8 @@ export const WallEditorTemplate = `
           <canvas class="editor__canvas" x-ref="canvas" x-init="redraw()"
                   :width="wallSize" :height="wallSize"
                   :style="'background-color:' + backgroundColor"
+                  role="img"
+                  :aria-label="'Lienzo del muro ' + (wall?.title || '')"
                   @pointerdown="onPointerDown($event)"
                   @pointermove="onPointerMove($event)"
                   @pointerup="onPointerUp($event)"

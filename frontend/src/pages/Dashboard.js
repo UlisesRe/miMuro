@@ -10,25 +10,11 @@
 import { api } from '../services/api.js'
 import { whenAuthReady } from '../hooks/useAuth.js'
 import { renderWallThumbnail } from '../utils/wallCanvas.js'
+import { WALL_BACKGROUNDS, DEFAULT_BACKGROUND } from '../utils/constants.js'
+import { openModal, closeModal, trapFocus } from '../utils/accessibility.js'
+import { ICONS } from '../utils/icons.js'
 
-const ICONS = {
-  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
-  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
-  brush: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.06 11.9 3.6 6.44A2 2 0 0 1 6.44 3.6l5.46 5.46"></path><path d="m14.5 9.5 5 5a2 2 0 0 1 0 2.83l-1.17 1.17a2 2 0 0 1-2.83 0l-5-5"></path><path d="m9 15-3 3-3 3 4-1 3-3"></path></svg>',
-  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
-  more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"></circle><circle cx="12" cy="12" r="1.9"></circle><circle cx="12" cy="19" r="1.9"></circle></svg>'
-}
-
-const PALETTE = [
-  '#ffffff',
-  '#fff3bf',
-  '#ffd8a8',
-  '#ffe3e3',
-  '#d3f9d8',
-  '#d0ebff',
-  '#e5dbff',
-  '#16181d'
-]
+const PALETTE = WALL_BACKGROUNDS
 
 export function DashboardPageComponent() {
   return {
@@ -46,7 +32,7 @@ export function DashboardPageComponent() {
     confirmBusy: false,
     formError: null,
     palette: PALETTE,
-    form: { title: '', background_color: '#ffffff', is_public: true },
+    form: { title: '', background_color: DEFAULT_BACKGROUND, is_public: true },
     shareOpen: false,
     shareWall: null,
     shareUrl: '',
@@ -90,15 +76,19 @@ export function DashboardPageComponent() {
     },
 
     async refreshPreview(wall) {
+      if ((wall.strokes_count || 0) === 0) {
+        wall.preview = null
+        wall.previewLoading = false
+        return
+      }
+      wall.previewLoading = true
       try {
-        if ((wall.strokes_count || 0) === 0) {
-          wall.preview = null
-          return
-        }
         const data = await api.walls.get(wall.id)
         wall.preview = renderWallThumbnail(data.strokes || [], wall.background_color)
       } catch {
         // Si falla, la tarjeta queda con el color de fondo del lienzo.
+      } finally {
+        wall.previewLoading = false
       }
     },
 
@@ -110,10 +100,10 @@ export function DashboardPageComponent() {
 
     openCreate() {
       this.editingWall = null
-      this.form = { title: '', background_color: '#ffffff', is_public: true }
+      this.form = { title: '', background_color: DEFAULT_BACKGROUND, is_public: true }
       this.formError = null
       this.showCreate = true
-      this.$nextTick(() => this.$refs.createTitle?.focus())
+      openModal(this, 'create', { initialFocus: () => this.$refs.createTitle })
     },
 
     openEdit(wall) {
@@ -126,12 +116,13 @@ export function DashboardPageComponent() {
       }
       this.formError = null
       this.showCreate = true
-      this.$nextTick(() => this.$refs.createTitle?.focus())
+      openModal(this, 'create', { initialFocus: () => this.$refs.createTitle })
     },
 
     closeCreate() {
       if (this.creating) return
       this.showCreate = false
+      closeModal(this, 'create')
     },
 
     get modalTitle() {
@@ -196,18 +187,19 @@ export function DashboardPageComponent() {
     askReset(wall) {
       this.openMenuId = null
       this.confirming = { type: 'reset', wall }
-      this.$nextTick(() => this.$refs.confirmTitle?.focus())
+      openModal(this, 'confirm', { initialFocus: () => this.$refs.confirmTitle })
     },
 
     askDelete(wall) {
       this.openMenuId = null
       this.confirming = { type: 'delete', wall }
-      this.$nextTick(() => this.$refs.confirmTitle?.focus())
+      openModal(this, 'confirm', { initialFocus: () => this.$refs.confirmTitle })
     },
 
     closeConfirm() {
       if (this.confirmBusy) return
       this.confirming = null
+      closeModal(this, 'confirm')
     },
 
     get confirmTitle() {
@@ -260,12 +252,18 @@ export function DashboardPageComponent() {
       const origin = window.location.origin
       this.shareUrl = origin + '/w/' + wall.slug
       this.shareOpen = true
-      this.$nextTick(() => this.$refs.shareCopy?.focus())
+      openModal(this, 'share', { initialFocus: () => this.$refs.shareCopy })
     },
 
     closeShare() {
       this.shareOpen = false
       this.shareWall = null
+      closeModal(this, 'share')
+    },
+
+    // Atrapa el Tab dentro del modal abierto (se engancha en @keydown.tab).
+    trapModal(event, ref) {
+      trapFocus(event, this.$refs[ref])
     },
 
     async copyShare() {
@@ -358,6 +356,7 @@ export const DashboardPageTemplate = `
           <div class="wall-card">
             <a class="wall-card__link" :href="'/dashboard/w/' + wall.id" @click.prevent="openWall(wall)">
               <span class="wall-card__thumb" :style="'background-color:' + wall.background_color">
+                <span class="wall-card__shimmer skeleton" x-show="wall.previewLoading" x-cloak aria-hidden="true"></span>
                 <template x-if="wall.preview">
                   <img class="wall-card__img" :src="wall.preview" :alt="'Vista previa de ' + wall.title">
                 </template>
@@ -395,10 +394,12 @@ export const DashboardPageTemplate = `
 
   </div>
 
-  <div class="modal" x-show="showCreate" x-cloak @keydown.escape.window="closeCreate()">
+  <div class="modal" x-show="showCreate" x-cloak
+       @keydown.escape.window="closeCreate()" @keydown.tab="trapModal($event, 'createPanel')">
     <div class="modal__backdrop" @click="closeCreate()"></div>
 
-    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="create-wall-title">
+    <div class="modal__panel" x-ref="createPanel"
+         role="dialog" aria-modal="true" aria-labelledby="create-wall-title">
       <form @submit.prevent="saveWall()">
         <header class="modal__header">
           <h2 class="modal__title" id="create-wall-title" tabindex="-1" x-ref="createTitle" x-text="modalTitle"></h2>
@@ -467,10 +468,12 @@ export const DashboardPageTemplate = `
     </div>
   </div>
 
-  <div class="modal" x-show="confirming" x-cloak @keydown.escape.window="closeConfirm()">
+  <div class="modal" x-show="confirming" x-cloak
+       @keydown.escape.window="closeConfirm()" @keydown.tab="trapModal($event, 'confirmPanel')">
     <div class="modal__backdrop" @click="closeConfirm()"></div>
 
-    <div class="modal__panel" role="alertdialog" aria-modal="true" aria-labelledby="confirm-wall-title">
+    <div class="modal__panel" x-ref="confirmPanel"
+         role="alertdialog" aria-modal="true" aria-labelledby="confirm-wall-title">
       <header class="modal__header">
         <h2 class="modal__title" id="confirm-wall-title" tabindex="-1" x-ref="confirmTitle" x-text="confirmTitle"></h2>
         <button type="button" class="btn btn--icon btn--ghost" @click="closeConfirm()" aria-label="Cerrar">
@@ -496,10 +499,12 @@ export const DashboardPageTemplate = `
     </div>
   </div>
 
-  <div class="modal" x-show="shareOpen" x-cloak @keydown.escape.window="closeShare()">
+  <div class="modal" x-show="shareOpen" x-cloak
+       @keydown.escape.window="closeShare()" @keydown.tab="trapModal($event, 'sharePanel')">
     <div class="modal__backdrop" @click="closeShare()"></div>
 
-    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="share-wall-title">
+    <div class="modal__panel" x-ref="sharePanel"
+         role="dialog" aria-modal="true" aria-labelledby="share-wall-title">
       <header class="modal__header">
         <h2 class="modal__title" id="share-wall-title" tabindex="-1">Compartir muro</h2>
         <button type="button" class="btn btn--icon btn--ghost" @click="closeShare()" aria-label="Cerrar">
@@ -516,12 +521,24 @@ export const DashboardPageTemplate = `
         <div class="field">
           <span class="field__label">Compartir en</span>
           <div class="share-grid">
-            <button type="button" class="btn btn--ghost btn--sm" @click="copyShare()">Copiar link</button>
-            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnInstagram()">Instagram Stories</button>
-            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnFacebook()">Facebook</button>
-            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnWhatsApp()">WhatsApp</button>
-            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnTwitter()">X (Twitter)</button>
-            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnTelegram()">Telegram</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="copyShare()">
+              ${ICONS.link}<span>Copiar link</span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnInstagram()">
+              ${ICONS.instagram}<span>Instagram</span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnFacebook()">
+              ${ICONS.facebook}<span>Facebook</span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnWhatsApp()">
+              ${ICONS.whatsapp}<span>WhatsApp</span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnTwitter()">
+              ${ICONS.twitter}<span>X (Twitter)</span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="shareOnTelegram()">
+              ${ICONS.telegram}<span>Telegram</span>
+            </button>
           </div>
         </div>
       </div>

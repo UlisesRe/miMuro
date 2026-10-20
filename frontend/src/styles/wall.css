@@ -70,6 +70,22 @@
   object-fit: cover;
 }
 
+/* Mientras la preview se compone, un brillo suave sobre el color de fondo. */
+.wall-card__shimmer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 25%,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0) 75%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
 .wall-card__badge {
   position: absolute;
   inset-block-end: var(--space-2xs);
@@ -557,29 +573,6 @@
   text-underline-offset: 2px;
 }
 
-.toolbar__field {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.toolbar__input {
-  width: 9rem;
-  min-height: 2.25rem;
-  padding-inline: var(--space-sm);
-  font-size: var(--text-sm);
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.toolbar__input:focus-visible {
-  border-color: var(--color-primary);
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
-  outline-offset: 1px;
-}
-
 .signers {
   margin-top: var(--space-lg);
   text-align: center;
@@ -621,5 +614,13 @@
 }
 
 .share-grid .btn {
-  justify-content: center;
+  justify-content: flex-start;
+  gap: var(--space-2xs);
+}
+
+.share-grid .btn svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
 }

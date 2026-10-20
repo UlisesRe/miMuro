@@ -272,22 +272,6 @@
   }
 }
 
-.auth-form__separator {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.auth-form__separator::before,
-.auth-form__separator::after {
-  content: '';
-  flex: 1 1 auto;
-  height: 1px;
-  background-color: var(--color-border);
-}
-
 /* Terms checkbox text can hold a link */
 .legal {
   font-size: var(--text-xs);
@@ -316,19 +300,6 @@
   font-weight: var(--weight-semibold);
 }
 
-/* ========================================
-   Password reveal toggle label
-   ======================================== */
-
-.field__action-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 /* Inline "show" text button, used next to
    the "forgot password" link on phones where
    stacking is easier to scan. */
@@ -348,26 +319,4 @@
 .link-button:hover {
   color: var(--color-primary-hover);
   text-decoration: underline;
-}
-
-/* ========================================
-   Guest notice shown when the user is
-   redirected here while already signed in
-   ======================================== */
-
-.auth__notice {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm);
-  font-size: var(--text-sm);
-  color: var(--color-info);
-  background-color: var(--color-info-soft);
-  border-radius: var(--radius-sm);
-}
-
-.auth__notice svg {
-  width: 1.125rem;
-  height: 1.125rem;
-  flex-shrink: 0;
 }
